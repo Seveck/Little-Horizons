@@ -31,6 +31,21 @@ public class AcademicController {
         return this.academicRecordDao.insert(record);
     }
 
+    // Get full academic history of a student since enrollment
+    public List<GradeDetail> getFullStudentAcademicHistory(int studentId) {
+        return this.academicRecordDao.findAllGradeDetailsByStudent(studentId);
+    }
+
+    // Calculate student's average grade per subject across all history using Streams
+    public Map<String, Double> calculateFullStudentAverageBySubject(int studentId) {
+        List<GradeDetail> studentGrades = this.getFullStudentAcademicHistory(studentId);
+        return studentGrades.stream()
+                .collect(Collectors.groupingBy(
+                        g -> "[" + g.subjectCode + "] " + g.subjectName,
+                        Collectors.averagingDouble(g -> g.gradeValue)
+                ));
+    }
+
     // Get academic history of a student for a given year using Streams
     public List<GradeDetail> getStudentAcademicHistory(int studentId, int academicYear) {
         List<GradeDetail> allGrades = this.academicRecordDao.findGradeDetailsByYear(academicYear);

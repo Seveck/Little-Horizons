@@ -59,8 +59,11 @@ public class TeacherController {
         return this.subjectDao.findById(id);
     }
 
-    // Assign a teacher to a subject, grade, section and academic year
+    // Assign a teacher to a subject, grade, section and academic year (returns -2 on schedule conflict)
     public int assignTeacherToSubject(TeacherAssignment assignment) {
+        if (this.teacherDao.hasScheduleConflict(assignment)) {
+            return -2;
+        }
         return this.teacherDao.insertAssignment(assignment);
     }
 

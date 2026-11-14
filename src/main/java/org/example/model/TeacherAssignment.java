@@ -1,5 +1,7 @@
 package org.example.model;
 
+import java.time.LocalTime;
+
 public class TeacherAssignment {
 
     private int id;
@@ -8,12 +10,15 @@ public class TeacherAssignment {
     private int gradeId;
     private String section = "A";
     private int academicYear;
+    private String scheduleDays = "Lunes";
+    private LocalTime startTime = LocalTime.of(7, 0);
+    private LocalTime endTime = LocalTime.of(8, 30);
 
     // Empty constructor
     public TeacherAssignment() {
     }
 
-    // Constructor with fields
+    // Basic constructor without schedule
     public TeacherAssignment(int id, int teacherId, int subjectId, int gradeId, String section, int academicYear) {
         this.id = id;
         this.teacherId = teacherId;
@@ -21,6 +26,20 @@ public class TeacherAssignment {
         this.gradeId = gradeId;
         this.section = section;
         this.academicYear = academicYear;
+    }
+
+    // Full constructor with schedule fields
+    public TeacherAssignment(int id, int teacherId, int subjectId, int gradeId, String section, int academicYear,
+                             String scheduleDays, LocalTime startTime, LocalTime endTime) {
+        this.id = id;
+        this.teacherId = teacherId;
+        this.subjectId = subjectId;
+        this.gradeId = gradeId;
+        this.section = section;
+        this.academicYear = academicYear;
+        this.scheduleDays = scheduleDays;
+        this.startTime = startTime;
+        this.endTime = endTime;
     }
 
     // Getters and Setters
@@ -72,6 +91,30 @@ public class TeacherAssignment {
         this.academicYear = academicYear;
     }
 
+    public String getScheduleDays() {
+        return this.scheduleDays;
+    }
+
+    public void setScheduleDays(String scheduleDays) {
+        this.scheduleDays = scheduleDays;
+    }
+
+    public LocalTime getStartTime() {
+        return this.startTime;
+    }
+
+    public void setStartTime(LocalTime startTime) {
+        this.startTime = startTime;
+    }
+
+    public LocalTime getEndTime() {
+        return this.endTime;
+    }
+
+    public void setEndTime(LocalTime endTime) {
+        this.endTime = endTime;
+    }
+
     @Override
     public String toString() {
         return "Asignacion ID: " + this.id
@@ -79,6 +122,7 @@ public class TeacherAssignment {
                 + " | Materia ID: " + this.subjectId
                 + " | Grado ID: " + this.gradeId
                 + " | Seccion: " + this.section
-                + " | Año: " + this.academicYear;
+                + " | Año: " + this.academicYear
+                + " | Horario: " + this.scheduleDays + " (" + this.startTime + " - " + this.endTime + ")";
     }
 }

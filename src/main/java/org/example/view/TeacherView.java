@@ -14,6 +14,7 @@ import org.example.model.TeacherStatus;
 import org.example.util.InputValidator;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Scanner;
 
@@ -188,11 +189,24 @@ public class TeacherView {
         int gradeId = InputValidator.readInt(this.consola, "ID del grado: ");
         String section = InputValidator.readString(this.consola, "Seccion (ej. A, B): ").toUpperCase();
         int year = InputValidator.readIntRange(this.consola, "Año academico (ej. 2026): ", 2020, 2035);
+        String scheduleDays = InputValidator.readString(this.consola, "Dias de clase (ej. Lunes, Miercoles): ");
+        LocalTime startTime = InputValidator.readTime(this.consola, "Hora de inicio (HH:MM, ej. 07:00): ");
+        LocalTime endTime;
+        while (true) {
+            endTime = InputValidator.readTime(this.consola, "Hora de fin (HH:MM, ej. 08:30): ");
+            if (endTime.isAfter(startTime)) {
+                break;
+            }
+            System.out.println("Error, la hora de fin debe ser posterior a la hora de inicio.");
+        }
 
-        TeacherAssignment ta = new TeacherAssignment(0, teacherId, subjectId, gradeId, section, year);
+        TeacherAssignment ta = new TeacherAssignment(
+                0, teacherId, subjectId, gradeId, section, year, scheduleDays, startTime, endTime);
         int id = this.teacherController.assignTeacherToSubject(ta);
         if (id > 0) {
             System.out.println("Asignacion creada con exito. ID Asignacion: " + id);
+        } else if (id == -2) {
+            System.out.println("Conflicto de horario: el profesor ya tiene clase asignada en esos dias y horas.");
         } else {
             System.out.println("No se pudo crear la asignacion (verifique datos o si ya existe).");
         }

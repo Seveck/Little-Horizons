@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 public class Payment {
 
     private int id;
+    private String receiptNumber;
     private int studentId;
     private int conceptId;
     private int academicYear;
@@ -20,10 +21,11 @@ public class Payment {
     }
 
     // Constructor with fields
-    public Payment(int id, int studentId, int conceptId, int academicYear, double amountPaid,
+    public Payment(int id, String receiptNumber, int studentId, int conceptId, int academicYear, double amountPaid,
                    PaymentMethod paymentMethod, LocalDateTime paymentDate, PaymentStatus status,
                    double discountApplied, String remarks) {
         this.id = id;
+        this.receiptNumber = receiptNumber;
         this.studentId = studentId;
         this.conceptId = conceptId;
         this.academicYear = academicYear;
@@ -42,6 +44,14 @@ public class Payment {
 
     public void setId(int id) {
         this.id = id;
+    }
+
+    public String getReceiptNumber() {
+        return this.receiptNumber;
+    }
+
+    public void setReceiptNumber(String receiptNumber) {
+        this.receiptNumber = receiptNumber;
     }
 
     public int getStudentId() {
@@ -121,6 +131,7 @@ public class Payment {
         String method = (this.paymentMethod != null) ? this.paymentMethod.getDbValue() : "";
         String st = (this.status != null) ? this.status.getDbValue() : "";
         return "Pago ID: " + this.id
+                + " | Recibo: " + (this.receiptNumber != null ? this.receiptNumber : "N/A")
                 + " | Estudiante ID: " + this.studentId
                 + " | Concepto ID: " + this.conceptId
                 + " | Monto: $" + this.amountPaid

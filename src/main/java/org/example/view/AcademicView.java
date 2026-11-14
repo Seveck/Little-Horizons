@@ -128,11 +128,24 @@ public class AcademicView {
             System.out.println("Estudiante no encontrado.");
             return;
         }
-        int year = InputValidator.readIntRange(this.consola, "Año academico (ej. 2026): ", 2020, 2035);
 
-        List<GradeDetail> history = this.academicController.getStudentAcademicHistory(studentId, year);
+        System.out.println("1. Consultar todo el historial desde su ingreso");
+        System.out.println("2. Filtrar por un año academico especifico");
+        int op = InputValidator.readMenuOption(this.consola, 1, 2);
+
+        List<GradeDetail> history;
+        Map<String, Double> avgBySubject;
+        if (op == 1) {
+            history = this.academicController.getFullStudentAcademicHistory(studentId);
+            avgBySubject = this.academicController.calculateFullStudentAverageBySubject(studentId);
+        } else {
+            int year = InputValidator.readIntRange(this.consola, "Año academico (ej. 2026): ", 2020, 2035);
+            history = this.academicController.getStudentAcademicHistory(studentId, year);
+            avgBySubject = this.academicController.calculateStudentAverageBySubject(studentId, year);
+        }
+
         if (history.isEmpty()) {
-            System.out.println("No hay calificaciones registradas para " + student.getFullName() + " en " + year);
+            System.out.println("No hay calificaciones registradas para " + student.getFullName() + ".");
             return;
         }
 
@@ -142,7 +155,6 @@ public class AcademicView {
         }
 
         System.out.println("\nPromedio por materia (calculado con Streams):");
-        Map<String, Double> avgBySubject = this.academicController.calculateStudentAverageBySubject(studentId, year);
         avgBySubject.forEach((subject, avg) ->
                 System.out.printf("  - %-40s : %.2f%n", subject, avg));
     }

@@ -36,6 +36,8 @@ public class AcademicRecordDao {
         public String toString() {
             String p = (this.period != null) ? this.period.getDbValue() : "";
             return "Registro #" + this.recordId
+                    + " | Año: " + this.academicYear
+                    + " | Grado: " + this.gradeName
                     + " | Estudiante: " + this.studentName
                     + " | Materia: [" + this.subjectCode + "] " + this.subjectName
                     + " | Periodo: " + p
@@ -131,27 +133,63 @@ public class AcademicRecordDao {
             ps.setInt(1, academicYear);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    GradeDetail detail = new GradeDetail();
-                    detail.recordId = rs.getInt("id_registro");
-                    detail.enrollmentSubjectId = rs.getInt("id_inscripcion");
-                    detail.studentId = rs.getInt("id_estudiante");
-                    detail.studentName = rs.getString("estudiante");
-                    detail.subjectId = rs.getInt("id_materia");
-                    detail.subjectCode = rs.getString("codigo_materia");
-                    detail.subjectName = rs.getString("nombre_materia");
-                    detail.gradeName = rs.getString("nombre_grado");
-                    detail.academicYear = rs.getInt("año_academico");
-                    detail.period = AcademicPeriod.fromDbValue(rs.getString("periodo"));
-                    detail.gradeValue = rs.getDouble("valor_nota");
-                    detail.percentage = rs.getDouble("porcentaje");
-                    detail.remarks = rs.getString("observaciones");
-                    list.add(detail);
+                    list.add(this.mapGradeDetailRow(rs));
                 }
             }
         } catch (SQLException e) {
             ErrorLogger.log(AcademicRecordDao.class, "findGradeDetailsByYear", e);
         }
         return list;
+    }
+
+    // Fetch full academic history of a student across all years since enrollment
+    public List<GradeDetail> findAllGradeDetailsByStudent(int studentId) {
+        List<GradeDetail> list = new ArrayList<>();
+        String sql = "SELECT ra.id_registro, ra.id_inscripcion, e.id_estudiante, "
+                + "CONCAT(e.nombres, ' ', e.apellidos) AS estudiante, "
+                + "m.id_materia, m.codigo_materia, m.nombre_materia, g.nombre_grado, "
+                + "ra.año_academico, ra.periodo, ra.valor_nota, ra.porcentaje, ra.observaciones "
+                + "FROM registros_academicos ra "
+                + "INNER JOIN inscripciones_materia im ON ra.id_inscripcion = im.id_inscripcion "
+                + "INNER JOIN estudiantes e ON im.id_estudiante = e.id_estudiante "
+                + "INNER JOIN asignaciones_profesor ap ON im.id_asignacion = ap.id_asignacion "
+                + "INNER JOIN materias m ON ap.id_materia = m.id_materia "
+                + "INNER JOIN grados g ON ap.id_grado = g.id_grado "
+                + "WHERE e.id_estudiante = ? "
+                + "ORDER BY ra.año_academico, m.nombre_materia, ra.periodo";
+
+        try (Connection conn = DatabaseConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setInt(1, studentId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    list.add(this.mapGradeDetailRow(rs));
+                }
+            }
+        } catch (SQLException e) {
+            ErrorLogger.log(AcademicRecordDao.class, "findAllGradeDetailsByStudent", e);
+        }
+        return list;
+    }
+
+    // Helper to convert joined ResultSet row to GradeDetail
+    private GradeDetail mapGradeDetailRow(ResultSet rs) throws SQLException {
+        GradeDetail detail = new GradeDetail();
+        detail.recordId = rs.getInt("id_registro");
+        detail.enrollmentSubjectId = rs.getInt("id_inscripcion");
+        detail.studentId = rs.getInt("id_estudiante");
+        detail.studentName = rs.getString("estudiante");
+        detail.subjectId = rs.getInt("id_materia");
+        detail.subjectCode = rs.getString("codigo_materia");
+        detail.subjectName = rs.getString("nombre_materia");
+        detail.gradeName = rs.getString("nombre_grado");
+        detail.academicYear = rs.getInt("año_academico");
+        detail.period = AcademicPeriod.fromDbValue(rs.getString("periodo"));
+        detail.gradeValue = rs.getDouble("valor_nota");
+        detail.percentage = rs.getDouble("porcentaje");
+        detail.remarks = rs.getString("observaciones");
+        return detail;
     }
 
     // Helper to convert ResultSet row to AcademicRecord

@@ -1,6 +1,7 @@
 package org.example.util;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Scanner;
@@ -8,6 +9,7 @@ import java.util.Scanner;
 public class InputValidator {
 
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
 
     // Read a text that cannot be empty
     public static String readString(Scanner consola, String mensaje) {
@@ -99,6 +101,19 @@ public class InputValidator {
                 return LocalDate.parse(texto, DATE_FORMAT);
             } catch (DateTimeParseException e) {
                 System.out.println("Error, fecha invalida. Use el formato AAAA-MM-DD (ejemplo: 2026-03-15).");
+            }
+        }
+    }
+
+    // Read a time in HH:mm format
+    public static LocalTime readTime(Scanner consola, String mensaje) {
+        while (true) {
+            System.out.print(mensaje);
+            String texto = consola.nextLine().trim();
+            try {
+                return LocalTime.parse(texto, TIME_FORMAT);
+            } catch (DateTimeParseException e) {
+                System.out.println("Error, hora invalida. Use formato 24h HH:MM (ejemplo: 07:00 o 14:30).");
             }
         }
     }
