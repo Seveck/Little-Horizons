@@ -96,7 +96,7 @@ public class FinancialController {
         LocalDate today = LocalDate.now();
         return this.paymentDao.findAllPaymentDetails().stream()
                 .filter(p -> p.status == PaymentStatus.PENDING && p.paymentDate != null)
-                .filter(p -> ChronoUnit.DAYS.between(p.paymentDate.toLocalDate(), today) > minDaysOverdue)
+                .filter(p -> ChronoUnit.DAYS.between(p.paymentDate, today) > minDaysOverdue)
                 .collect(Collectors.toList());
     }
 
@@ -118,6 +118,11 @@ public class FinancialController {
         return this.invoiceDao.findByPaymentId(paymentId);
     }
 
+    // Find invoice by invoice number
+    public Invoice findInvoiceByNumber(String invoiceNumber) {
+        return this.invoiceDao.findByInvoiceNumber(invoiceNumber);
+    }
+
     // Build InvoiceDetails object for TxtInvoiceGenerator
     private InvoiceDetails buildInvoiceDetails(Payment payment, Student student, Guardian guardian, PaymentConcept concept) {
         InvoiceDetails details = new InvoiceDetails();
@@ -127,7 +132,7 @@ public class FinancialController {
         if (guardian != null) {
             details.guardianName = guardian.getFullName();
             details.guardianDocument = guardian.getDocumentType().getDbValue() + " " + guardian.getDocumentNumber();
-            details.guardianPhone = guardian.getPhone();
+            details.guardianPhone = guardian.getPrimaryPhone();
             details.guardianEmail = guardian.getEmail();
             details.guardianAddress = guardian.getAddress();
         } else {
@@ -145,7 +150,7 @@ public class FinancialController {
         details.netTotal = payment.getAmountPaid();
         details.paymentMethod = payment.getPaymentMethod().getDbValue();
         details.academicYear = payment.getAcademicYear();
-        details.remarks = payment.getRemarks();
+        details.remarks = payment.getNotes();
         return details;
     }
 }

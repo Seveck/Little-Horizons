@@ -6,29 +6,19 @@ public class Event {
 
     private int id;
     private String name;
-    private EventType type;
     private String description;
+    private EventType eventType;
     private LocalDate eventDate;
     private String location;
-    private boolean hasCompetition = false;
+    private boolean hasCompetition;
+    private int organizerTeacherId;
+    private boolean active;
+    private String organizerName;
 
-    // Empty constructor
     public Event() {
+        this.active = true;
     }
 
-    // Constructor with fields
-    public Event(int id, String name, EventType type, String description,
-                 LocalDate eventDate, String location, boolean hasCompetition) {
-        this.id = id;
-        this.name = name;
-        this.type = type;
-        this.description = description;
-        this.eventDate = eventDate;
-        this.location = location;
-        this.hasCompetition = hasCompetition;
-    }
-
-    // Getters and Setters
     public int getId() {
         return this.id;
     }
@@ -45,20 +35,20 @@ public class Event {
         this.name = name;
     }
 
-    public EventType getType() {
-        return this.type;
-    }
-
-    public void setType(EventType type) {
-        this.type = type;
-    }
-
     public String getDescription() {
         return this.description;
     }
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public EventType getEventType() {
+        return this.eventType;
+    }
+
+    public void setEventType(EventType eventType) {
+        this.eventType = eventType;
     }
 
     public LocalDate getEventDate() {
@@ -85,15 +75,36 @@ public class Event {
         this.hasCompetition = hasCompetition;
     }
 
+    public int getOrganizerTeacherId() {
+        return this.organizerTeacherId;
+    }
+
+    public void setOrganizerTeacherId(int organizerTeacherId) {
+        this.organizerTeacherId = organizerTeacherId;
+    }
+
+    public boolean isActive() {
+        return this.active;
+    }
+
+    public void setActive(boolean active) {
+        this.active = active;
+    }
+
+    public String getOrganizerName() {
+        return this.organizerName;
+    }
+
+    public void setOrganizerName(String organizerName) {
+        this.organizerName = organizerName;
+    }
+
     @Override
     public String toString() {
-        String tp = (this.type != null) ? this.type.getDbValue() : "";
-        String comp = this.hasCompetition ? "Si" : "No";
-        return "ID: " + this.id
-                + " | Evento: " + this.name
-                + " | Tipo: " + tp
-                + " | Fecha: " + this.eventDate
-                + " | Lugar: " + this.location
-                + " | Competencia: " + comp;
+        String type = (this.eventType != null) ? this.eventType.getDbValue() : "N/A";
+        return String.format("ID: %d | %s | Tipo: %s | Fecha: %s | Lugar: %s | Competencia: %s",
+                this.id, this.name, type, this.eventDate,
+                this.location != null ? this.location : "-",
+                this.hasCompetition ? "Si" : "No");
     }
 }

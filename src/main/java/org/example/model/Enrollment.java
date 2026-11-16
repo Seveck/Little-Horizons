@@ -8,27 +8,18 @@ public class Enrollment {
     private int studentId;
     private int gradeId;
     private int academicYear;
+    private EnrollmentStatus status;
     private LocalDate enrollmentDate;
-    private EnrollmentStatus status = EnrollmentStatus.ENROLLED;
-    private double enrollmentCost;
+    private LocalDate withdrawalDate;
+    private String observations;
+    private String studentName;
+    private String gradeName;
 
-    // Empty constructor
     public Enrollment() {
+        this.status = EnrollmentStatus.ACTIVE;
+        this.enrollmentDate = LocalDate.now();
     }
 
-    // Constructor with fields
-    public Enrollment(int id, int studentId, int gradeId, int academicYear,
-                      LocalDate enrollmentDate, EnrollmentStatus status, double enrollmentCost) {
-        this.id = id;
-        this.studentId = studentId;
-        this.gradeId = gradeId;
-        this.academicYear = academicYear;
-        this.enrollmentDate = enrollmentDate;
-        this.status = status;
-        this.enrollmentCost = enrollmentCost;
-    }
-
-    // Getters and Setters
     public int getId() {
         return this.id;
     }
@@ -61,14 +52,6 @@ public class Enrollment {
         this.academicYear = academicYear;
     }
 
-    public LocalDate getEnrollmentDate() {
-        return this.enrollmentDate;
-    }
-
-    public void setEnrollmentDate(LocalDate enrollmentDate) {
-        this.enrollmentDate = enrollmentDate;
-    }
-
     public EnrollmentStatus getStatus() {
         return this.status;
     }
@@ -77,22 +60,53 @@ public class Enrollment {
         this.status = status;
     }
 
-    public double getEnrollmentCost() {
-        return this.enrollmentCost;
+    public LocalDate getEnrollmentDate() {
+        return this.enrollmentDate;
     }
 
-    public void setEnrollmentCost(double enrollmentCost) {
-        this.enrollmentCost = enrollmentCost;
+    public void setEnrollmentDate(LocalDate enrollmentDate) {
+        this.enrollmentDate = enrollmentDate;
+    }
+
+    public LocalDate getWithdrawalDate() {
+        return this.withdrawalDate;
+    }
+
+    public void setWithdrawalDate(LocalDate withdrawalDate) {
+        this.withdrawalDate = withdrawalDate;
+    }
+
+    public String getObservations() {
+        return this.observations;
+    }
+
+    public void setObservations(String observations) {
+        this.observations = observations;
+    }
+
+    public String getStudentName() {
+        return this.studentName;
+    }
+
+    public void setStudentName(String studentName) {
+        this.studentName = studentName;
+    }
+
+    public String getGradeName() {
+        return this.gradeName;
+    }
+
+    public void setGradeName(String gradeName) {
+        this.gradeName = gradeName;
     }
 
     @Override
     public String toString() {
-        String st = (this.status != null) ? this.status.getDbValue() : "";
-        return "Matricula ID: " + this.id
-                + " | Estudiante ID: " + this.studentId
-                + " | Grado ID: " + this.gradeId
-                + " | Año: " + this.academicYear
-                + " | Estado: " + st
-                + " | Costo: $" + this.enrollmentCost;
+        String st = (this.status != null) ? this.status.getDbValue() : "N/A";
+        return String.format("Matricula #%d | Est: %s | Grado: %s | Ano: %d | Estado: %s | Fecha: %s",
+                this.id,
+                this.studentName != null ? this.studentName : String.valueOf(this.studentId),
+                this.gradeName != null ? this.gradeName : String.valueOf(this.gradeId),
+                this.academicYear, st, this.enrollmentDate);
     }
 }

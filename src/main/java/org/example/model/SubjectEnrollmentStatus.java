@@ -1,10 +1,9 @@
 package org.example.model;
 
 public enum SubjectEnrollmentStatus {
-    IN_PROGRESS("Cursando"),
-    PASSED("Aprobada"),
-    FAILED("Reprobada"),
-    CANCELLED("Cancelada");
+    ACTIVE("Activa"),
+    WITHDRAWN("Retirada"),
+    COMPLETED("Completada");
 
     private final String dbValue;
 
@@ -22,6 +21,6 @@ public enum SubjectEnrollmentStatus {
                 return status;
             }
         }
-        return IN_PROGRESS;
+        return ACTIVE;
     }
 }

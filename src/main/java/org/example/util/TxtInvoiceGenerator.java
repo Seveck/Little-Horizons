@@ -2,9 +2,10 @@ package org.example.util;
 
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.DecimalFormat;
@@ -74,7 +75,7 @@ public class TxtInvoiceGenerator {
         }
     }
 
-    // Generate the .txt invoice file inside invoices/
+    // Generate the .txt invoice file inside invoices/ using UTF-8 BufferedWriter
     public static String generateInvoiceFile(InvoiceDetails data) throws IOException {
         File folder = new File(FOLDER);
         if (!folder.exists()) {
@@ -83,7 +84,7 @@ public class TxtInvoiceGenerator {
 
         String fileName = String.format("factura_%06d.txt", data.invoiceId);
         String fullPath = FOLDER + "/" + fileName;
-        File file = new File(folder, fileName);
+        Path outPath = Path.of(FOLDER, fileName);
 
         String dateStr = data.issueDate.format(DATE_FORMAT);
         String subtotalStr = formatMoney(data.baseAmount);
@@ -92,115 +93,82 @@ public class TxtInvoiceGenerator {
         String totalStr = formatMoney(data.netTotal);
         String cufe = calculateCufe(data.invoiceNumber, dateStr, data.netTotal, data.guardianDocument);
 
+        String itemDesc = "[" + safe(data.conceptCode) + "] " + safe(data.conceptName);
+        if (itemDesc.length() > 34) {
+            itemDesc = itemDesc.substring(0, 31) + "...";
+        }
+
         StringBuilder sb = new StringBuilder();
-        sb.append("┌────────────────────────────────────────────────────────────────────────────────┐\n");
+        sb.append("+----------------------------------------------------------------------------------+\n");
         sb.append(centerLine("COLEGIO INTERNACIONAL LITTLE HORIZONS S.A.S."));
-        sb.append(centerLine("NIT: 901.584.930-1"));
+        sb.append(centerLine("NIT: 901.584.930-1 | Regimen Comun"));
+        sb.append(centerLine("Calle 127 No. 15-40, Bogota D.C. | Tel: (601) 555-0192"));
+        sb.append(centerLine("Correo: facturacion@littlehorizons.edu.co"));
         sb.append(centerLine("Resolucion DIAN No. 18764000123456 de 2026-01-01"));
         sb.append(centerLine("Rango Habilitado: FE-2026-000001 al FE-2026-999999"));
-        sb.append(centerLine("Direccion: Av. Libertadores # 10-05, Cucuta, Colombia"));
-        sb.append(centerLine("Telefono: +57 (607) 589-1000 | facturacion@littlehorizons.edu.co"));
-        sb.append("├────────────────────────────────────────────────────────────────────────────────┤\n");
-        sb.append(boxLine("FACTURA ELECTRONICA DE VENTA: " + data.invoiceNumber));
-        sb.append(boxLine("Fecha y Hora de Emision:      " + dateStr));
-        sb.append(boxLine("Metodo de Pago:               " + data.paymentMethod));
-        sb.append(boxLine("Año Academico:                " + data.academicYear));
-        sb.append("├────────────────────────────────────────────────────────────────────────────────┤\n");
-        sb.append(boxLine("DATOS DEL CLIENTE / ACUDIENTE:"));
-        sb.append(boxLine("Acudiente:  " + data.guardianName));
-        sb.append(boxLine("Documento:  " + data.guardianDocument));
-        sb.append(boxLine("Telefono:   " + data.guardianPhone));
-        sb.append(boxLine("Correo:     " + data.guardianEmail));
-        sb.append(boxLine("Direccion:  " + data.guardianAddress));
-        sb.append("├────────────────────────────────────────────────────────────────────────────────┤\n");
-        sb.append(boxLine("ESTUDIANTE BENEFICIARIO:"));
-        sb.append(boxLine("Nombre:     " + data.studentName));
-        sb.append(boxLine("Documento:  " + data.studentDocument));
-        sb.append("├────────────────────────────────────────────────────────────────────────────────┤\n");
-        sb.append(boxLine("DETALLE DE CONCEPTOS:"));
-        sb.append(boxLine(String.format("%-11s %-31s %4s %14s %14s", "Codigo", "Concepto", "Cant", "V. Unitario", "Total")));
-        sb.append(boxLine("──────────────────────────────────────────────────────────────────────────────"));
-
-        String code = data.conceptCode;
-        if (code.length() > 11) {
-            code = code.substring(0, 11);
-        }
-        String concept = data.conceptName;
-        if (concept.length() > 31) {
-            concept = concept.substring(0, 28) + "...";
-        }
-        sb.append(boxLine(String.format("%-11s %-31s %4d %14s %14s", code, concept, 1, subtotalStr, subtotalStr)));
-
+        sb.append("+----------------------------------------------------------------------------------+\n");
+        sb.append(rowLine("FACTURA ELECTRONICA DE VENTA No: " + safe(data.invoiceNumber)));
+        sb.append(rowLine("Fecha de Emision: " + dateStr + "    |    Año Academico: " + data.academicYear));
+        sb.append(rowLine("Metodo de Pago:   " + safe(data.paymentMethod)));
+        sb.append("+----------------------------------------------------------------------------------+\n");
+        sb.append(rowLine("DATOS DEL ADQUIRIENTE (ACUDIENTE RESPONSABLE)"));
+        sb.append(rowLine("Nombre:     " + safe(data.guardianName)));
+        sb.append(rowLine("Documento:  " + safe(data.guardianDocument) + "    Tel: " + safe(data.guardianPhone)));
+        sb.append(rowLine("Correo:     " + safe(data.guardianEmail)));
+        sb.append(rowLine("Direccion:  " + safe(data.guardianAddress)));
+        sb.append(rowLine("Estudiante: " + safe(data.studentName) + " (" + safe(data.studentDocument) + ")"));
+        sb.append("+------------------------------------+------+------------------+-------------------+\n");
+        sb.append(String.format("| %-34s | %-4s | %-16s | %-17s |%n",
+                "DESCRIPCION", "CANT", "VALOR UNIT.", "SUBTOTAL"));
+        sb.append("+------------------------------------+------+------------------+-------------------+\n");
+        sb.append(String.format("| %-34s | %-4s | %16s | %17s |%n",
+                itemDesc, "1", subtotalStr, subtotalStr));
+        sb.append("+------------------------------------+------+------------------+-------------------+\n");
         if (data.remarks != null && !data.remarks.trim().isEmpty()) {
-            sb.append(boxLine("  Obs: " + data.remarks.trim()));
+            sb.append(rowLine("Notas: " + data.remarks));
+            sb.append("+----------------------------------------------------------------------------------+\n");
         }
+        sb.append(rowLine(String.format("%-48s %32s", "Subtotal Base:", subtotalStr)));
+        sb.append(rowLine(String.format("%-48s %32s", "Descuento / Beca:", discountStr)));
+        sb.append(rowLine(String.format("%-48s %32s", "IVA (Exento 0%):", ivaStr)));
+        sb.append(rowLine(String.format("%-48s %32s", "TOTAL PAGADO:", totalStr)));
+        sb.append("+----------------------------------------------------------------------------------+\n");
+        sb.append(rowLine("VALIDACION DIAN - CUFE (SHA-256)"));
+        sb.append(rowLine(cufe));
+        sb.append(rowLine("CODIGO QR SIMULADO:"));
+        sb.append(rowLine("  [####  ##  ####]   FE=" + safe(data.invoiceNumber) + " | NIT=901584930-1"));
+        sb.append(rowLine("  [#  # #### #  #]   Doc=" + safe(data.guardianDocument) + " | Total=" + totalStr));
+        sb.append(rowLine("  [####  ##  ####]   Fecha=" + dateStr));
+        sb.append("+----------------------------------------------------------------------------------+\n");
+        sb.append(centerLine("Factura generada automaticamente por Little Horizons ERP"));
+        sb.append("+----------------------------------------------------------------------------------+\n");
 
-        sb.append("├────────────────────────────────────────────────────────────────────────────────┤\n");
-        sb.append(twoColLine("SUBTOTAL:", subtotalStr));
-        sb.append(twoColLine("DESCUENTO:", discountStr));
-        sb.append(twoColLine("IVA (0% - Servicio Educativo Exento):", ivaStr));
-        sb.append(boxLine("──────────────────────────────────────────────────────────────────────────────"));
-        sb.append(twoColLine("TOTAL PAGADO:", totalStr));
-        sb.append("├────────────────────────────────────────────────────────────────────────────────┤\n");
-        sb.append(boxLine("CUFE (Codigo Unico de Factura Electronica):"));
-        sb.append(boxLine(cufe));
-        sb.append("├────────────────────────────────────────────────────────────────────────────────┤\n");
-        sb.append(boxLine("CODIGO QR DE VALIDACION DIAN (SIMULADO):"));
-        sb.append(centerLine("██████████████  ██  ██████████████"));
-        sb.append(centerLine("██          ██  ██  ██          ██"));
-        sb.append(centerLine("██  ██████  ██      ██  ██████  ██"));
-        sb.append(centerLine("██  ██████  ██  ██  ██  ██████  ██"));
-        sb.append(centerLine("██          ██  ██  ██          ██"));
-        sb.append(centerLine("██████████████  ██  ██████████████"));
-        sb.append(centerLine("                ████              "));
-        sb.append(centerLine("██████  ██████  ██  ██████  ██████"));
-        sb.append(centerLine("██  ██  ██  ██  ██████  ██  ██  ██"));
-        sb.append(centerLine("██████████████  ██  ██████████████"));
-        sb.append(centerLine("Consulte este documento en: https://catalogo-vpfe.dian.gov.co"));
-        sb.append("└────────────────────────────────────────────────────────────────────────────────┘\n");
-
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(file, StandardCharsets.UTF_8))) {
+        try (BufferedWriter writer = Files.newBufferedWriter(outPath, StandardCharsets.UTF_8)) {
             writer.write(sb.toString());
-        } catch (IOException e) {
-            ErrorLogger.log(TxtInvoiceGenerator.class, "generateInvoiceFile", e);
-            throw e;
         }
 
         return fullPath;
     }
 
-    // Pad text to 78 characters inside box borders
-    private static String boxLine(String text) {
-        String safe = "";
-        if (text != null) {
-            safe = text;
-        }
-        if (safe.length() > 78) {
-            safe = safe.substring(0, 75) + "...";
-        }
-        return String.format("│ %-78s │\n", safe);
+    private static String safe(String text) {
+        return (text != null) ? text : "";
     }
 
-    // Center text inside 78-character box width
     private static String centerLine(String text) {
-        String safe = "";
-        if (text != null) {
-            safe = text;
+        int width = 80;
+        if (text.length() >= width) {
+            return "| " + text.substring(0, width) + " |\n";
         }
-        if (safe.length() >= 78) {
-            return boxLine(safe);
-        }
-        int left = (78 - safe.length()) / 2;
-        int right = 78 - safe.length() - left;
-        return "│ " + " ".repeat(left) + safe + " ".repeat(right) + " │\n";
+        int leftPad = (width - text.length()) / 2;
+        int rightPad = width - text.length() - leftPad;
+        return "| " + " ".repeat(leftPad) + text + " ".repeat(rightPad) + " |\n";
     }
 
-    // Align left and right columns inside box
-    private static String twoColLine(String left, String right) {
-        int spaces = 78 - left.length() - right.length();
-        if (spaces < 1) {
-            return boxLine(left + " " + right);
+    private static String rowLine(String text) {
+        int width = 80;
+        if (text.length() > width) {
+            text = text.substring(0, width - 3) + "...";
         }
-        return "│ " + left + " ".repeat(spaces) + right + " │\n";
+        return String.format("| %-80s |%n", text);
     }
 }

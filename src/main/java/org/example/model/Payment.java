@@ -1,57 +1,38 @@
 package org.example.model;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 public class Payment {
 
     private int id;
-    private String receiptNumber;
     private int studentId;
+    private int guardianId;
     private int conceptId;
-    private int academicYear;
     private double amountPaid;
+    private double discountApplied;
+    private PaymentStatus status;
+    private LocalDate paymentDate;
     private PaymentMethod paymentMethod;
-    private LocalDateTime paymentDate;
-    private PaymentStatus status = PaymentStatus.PAID;
-    private double discountApplied = 0.0;
-    private String remarks;
+    private String receiptNumber;
+    private int academicYear;
+    private String academicPeriod;
+    private String notes;
+    private String studentName;
+    private String guardianName;
+    private String conceptName;
 
-    // Empty constructor
     public Payment() {
+        this.paymentDate = LocalDate.now();
+        this.status = PaymentStatus.PAID;
+        this.academicPeriod = "Anual";
     }
 
-    // Constructor with fields
-    public Payment(int id, String receiptNumber, int studentId, int conceptId, int academicYear, double amountPaid,
-                   PaymentMethod paymentMethod, LocalDateTime paymentDate, PaymentStatus status,
-                   double discountApplied, String remarks) {
-        this.id = id;
-        this.receiptNumber = receiptNumber;
-        this.studentId = studentId;
-        this.conceptId = conceptId;
-        this.academicYear = academicYear;
-        this.amountPaid = amountPaid;
-        this.paymentMethod = paymentMethod;
-        this.paymentDate = paymentDate;
-        this.status = status;
-        this.discountApplied = discountApplied;
-        this.remarks = remarks;
-    }
-
-    // Getters and Setters
     public int getId() {
         return this.id;
     }
 
     public void setId(int id) {
         this.id = id;
-    }
-
-    public String getReceiptNumber() {
-        return this.receiptNumber;
-    }
-
-    public void setReceiptNumber(String receiptNumber) {
-        this.receiptNumber = receiptNumber;
     }
 
     public int getStudentId() {
@@ -62,20 +43,20 @@ public class Payment {
         this.studentId = studentId;
     }
 
+    public int getGuardianId() {
+        return this.guardianId;
+    }
+
+    public void setGuardianId(int guardianId) {
+        this.guardianId = guardianId;
+    }
+
     public int getConceptId() {
         return this.conceptId;
     }
 
     public void setConceptId(int conceptId) {
         this.conceptId = conceptId;
-    }
-
-    public int getAcademicYear() {
-        return this.academicYear;
-    }
-
-    public void setAcademicYear(int academicYear) {
-        this.academicYear = academicYear;
     }
 
     public double getAmountPaid() {
@@ -86,20 +67,12 @@ public class Payment {
         this.amountPaid = amountPaid;
     }
 
-    public PaymentMethod getPaymentMethod() {
-        return this.paymentMethod;
+    public double getDiscountApplied() {
+        return this.discountApplied;
     }
 
-    public void setPaymentMethod(PaymentMethod paymentMethod) {
-        this.paymentMethod = paymentMethod;
-    }
-
-    public LocalDateTime getPaymentDate() {
-        return this.paymentDate;
-    }
-
-    public void setPaymentDate(LocalDateTime paymentDate) {
-        this.paymentDate = paymentDate;
+    public void setDiscountApplied(double discountApplied) {
+        this.discountApplied = discountApplied;
     }
 
     public PaymentStatus getStatus() {
@@ -110,33 +83,87 @@ public class Payment {
         this.status = status;
     }
 
-    public double getDiscountApplied() {
-        return this.discountApplied;
+    public LocalDate getPaymentDate() {
+        return this.paymentDate;
     }
 
-    public void setDiscountApplied(double discountApplied) {
-        this.discountApplied = discountApplied;
+    public void setPaymentDate(LocalDate paymentDate) {
+        this.paymentDate = paymentDate;
     }
 
-    public String getRemarks() {
-        return this.remarks;
+    public PaymentMethod getPaymentMethod() {
+        return this.paymentMethod;
     }
 
-    public void setRemarks(String remarks) {
-        this.remarks = remarks;
+    public void setPaymentMethod(PaymentMethod paymentMethod) {
+        this.paymentMethod = paymentMethod;
+    }
+
+    public String getReceiptNumber() {
+        return this.receiptNumber;
+    }
+
+    public void setReceiptNumber(String receiptNumber) {
+        this.receiptNumber = receiptNumber;
+    }
+
+    public int getAcademicYear() {
+        return this.academicYear;
+    }
+
+    public void setAcademicYear(int academicYear) {
+        this.academicYear = academicYear;
+    }
+
+    public String getAcademicPeriod() {
+        return this.academicPeriod;
+    }
+
+    public void setAcademicPeriod(String academicPeriod) {
+        this.academicPeriod = academicPeriod;
+    }
+
+    public String getNotes() {
+        return this.notes;
+    }
+
+    public void setNotes(String notes) {
+        this.notes = notes;
+    }
+
+    public String getStudentName() {
+        return this.studentName;
+    }
+
+    public void setStudentName(String studentName) {
+        this.studentName = studentName;
+    }
+
+    public String getGuardianName() {
+        return this.guardianName;
+    }
+
+    public void setGuardianName(String guardianName) {
+        this.guardianName = guardianName;
+    }
+
+    public String getConceptName() {
+        return this.conceptName;
+    }
+
+    public void setConceptName(String conceptName) {
+        this.conceptName = conceptName;
     }
 
     @Override
     public String toString() {
-        String method = (this.paymentMethod != null) ? this.paymentMethod.getDbValue() : "";
-        String st = (this.status != null) ? this.status.getDbValue() : "";
-        return "Pago ID: " + this.id
-                + " | Recibo: " + (this.receiptNumber != null ? this.receiptNumber : "N/A")
-                + " | Estudiante ID: " + this.studentId
-                + " | Concepto ID: " + this.conceptId
-                + " | Monto: $" + this.amountPaid
-                + " | Metodo: " + method
-                + " | Estado: " + st
-                + " | Fecha: " + this.paymentDate;
+        String st = (this.status != null) ? this.status.getDbValue() : "N/A";
+        String method = (this.paymentMethod != null) ? this.paymentMethod.getDbValue() : "N/A";
+        String rec = (this.receiptNumber != null && !this.receiptNumber.isEmpty()) ? this.receiptNumber : "-";
+        return String.format("Pago #%d | Rec: %s | Est: %s | Concepto: %s | Monto: $%,.2f | Desc: $%,.2f | %s | %s | %s",
+                this.id, rec,
+                this.studentName != null ? this.studentName : String.valueOf(this.studentId),
+                this.conceptName != null ? this.conceptName : String.valueOf(this.conceptId),
+                this.amountPaid, this.discountApplied, this.paymentDate, method, st);
     }
 }

@@ -3,7 +3,6 @@ package org.example.controller;
 import org.example.dao.ClubDao;
 import org.example.dao.EventDao;
 import org.example.model.Club;
-import org.example.model.ClubStatus;
 import org.example.model.Event;
 import org.example.model.EventParticipant;
 import org.example.model.EventRank;
@@ -38,7 +37,7 @@ public class ExtracurricularController {
     // List only active clubs using Java Stream API
     public List<Club> listActiveClubs() {
         return this.clubDao.findAllClubs().stream()
-                .filter(c -> c.getStatus() == ClubStatus.ACTIVE)
+                .filter(c -> c.isActive())
                 .collect(Collectors.toList());
     }
 
@@ -96,14 +95,14 @@ public class ExtracurricularController {
     // Filter events by type using Java Stream API
     public List<Event> listEventsByType(EventType type) {
         return this.eventDao.findAllEvents().stream()
-                .filter(e -> e.getType() == type)
+                .filter(e -> e.getEventType() == type)
                 .collect(Collectors.toList());
     }
 
     // Filter only events with competition using Java Stream API
     public List<Event> listCompetitiveEvents() {
         return this.eventDao.findAllEvents().stream()
-                .filter(Event::isHasCompetition)
+                .filter(e -> e.isHasCompetition())
                 .collect(Collectors.toList());
     }
 
@@ -136,7 +135,7 @@ public class ExtracurricularController {
     public Map<String, Long> countEventsByType() {
         return this.eventDao.findAllEvents().stream()
                 .collect(Collectors.groupingBy(
-                        e -> e.getType().getDbValue(),
+                        e -> e.getEventType().getDbValue(),
                         Collectors.counting()
                 ));
     }

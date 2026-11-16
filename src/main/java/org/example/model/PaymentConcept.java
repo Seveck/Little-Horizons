@@ -7,24 +7,13 @@ public class PaymentConcept {
     private String name;
     private String description;
     private double baseAmount;
-    private boolean periodic = false;
+    private boolean recurring;
+    private boolean active;
 
-    // Empty constructor
     public PaymentConcept() {
+        this.active = true;
     }
 
-    // Constructor with fields
-    public PaymentConcept(int id, String code, String name, String description,
-                          double baseAmount, boolean periodic) {
-        this.id = id;
-        this.code = code;
-        this.name = name;
-        this.description = description;
-        this.baseAmount = baseAmount;
-        this.periodic = periodic;
-    }
-
-    // Getters and Setters
     public int getId() {
         return this.id;
     }
@@ -65,21 +54,25 @@ public class PaymentConcept {
         this.baseAmount = baseAmount;
     }
 
-    public boolean isPeriodic() {
-        return this.periodic;
+    public boolean isRecurring() {
+        return this.recurring;
     }
 
-    public void setPeriodic(boolean periodic) {
-        this.periodic = periodic;
+    public void setRecurring(boolean recurring) {
+        this.recurring = recurring;
+    }
+
+    public boolean isActive() {
+        return this.active;
+    }
+
+    public void setActive(boolean active) {
+        this.active = active;
     }
 
     @Override
     public String toString() {
-        String per = this.periodic ? "Si" : "No";
-        return "ID: " + this.id
-                + " | Codigo: " + this.code
-                + " | Concepto: " + this.name
-                + " | Monto Base: $" + this.baseAmount
-                + " | Periodico: " + per;
+        return String.format("ID: %d | [%s] %s | Base: $%,.2f | Recurrente: %s",
+                this.id, this.code, this.name, this.baseAmount, this.recurring ? "Si" : "No");
     }
 }

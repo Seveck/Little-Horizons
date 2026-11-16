@@ -1,1060 +1,1139 @@
 -- =============================================================================
 -- PROYECTO: Little Horizons ERP - Sistema de Gestión Educativa
 -- ARCHIVO: docs/database.sql
--- MOTOR: MySQL 8.0+
--- JUEGO DE CARACTERES: utf8mb4 (Collation: utf8mb4_unicode_ci)
--- ARQUITECTURA: MVC en Consola con JDBC
+-- BASE: Script oficial proporcionado en el anexo del proyecto (Versión 2.0)
+-- MODIFICACIONES JUSTIFICADAS SOBRE EL SCRIPT BASE:
+--   1. Tabla `asignaciones_profesor`: se agregaron `dias_horario`, `hora_inicio`
+--      y `hora_fin` para cumplir con el requisito 1.2 (control básico de horarios
+--      y detección de conflictos de cruce para un mismo profesor).
+--   2. Tabla `pagos`: se agregaron `descuento_aplicado` y `estado_pago` para
+--      cumplir con los requisitos 3.1 (descuentos por hermanos/becas) y 3.2
+--      (identificación de pagos pendientes con más de un mes de mora).
 -- =============================================================================
 
--- =============================================================================
--- SECCIÓN 0: CREACIÓN Y SELECCIÓN DE BASE DE DATOS
--- =============================================================================
-DROP DATABASE IF EXISTS `erp_little_horizons`;
-CREATE DATABASE `erp_little_horizons`
-    CHARACTER SET utf8mb4
-    COLLATE utf8mb4_unicode_ci;
+-- Anexo: Script de Base de Datos
 
-USE `erp_little_horizons`;
+-- A continuación se presenta el script completo DDL de MySQL para crear todas las tablas necesarias. 
+-- Este script debe ejecutarse en una base de datos llamada `little_horizons_erp`.
+-- Si encuentra detalles que modificar o agregar, puede editar el script siempre y cuando pueda justificar sus cambios.
+
+
+-- ============================================
+-- Little Horizons ERP - Esquema de Base de Datos
+-- Sistema de Gestión Educativa
+-- Versión: 2.0 (Corregida y Mejorada)
+-- Motor: MySQL 8.0 o superior (REQUERIDO)
+-- ============================================
 
 SET NAMES utf8mb4;
-SET FOREIGN_KEY_CHECKS = 0;
+DROP DATABASE IF EXISTS erp_little_horizons;
+CREATE DATABASE erp_little_horizons CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE erp_little_horizons;
 
--- =============================================================================
--- SECCIÓN 1: DDL (DEFINICIÓN DE ESTRUCTURA Y TABLAS)
--- =============================================================================
+-- ============================================
+-- 1. MÓDULO DE ESTUDIANTES Y ACUDIENTES
+-- ============================================
 
--- 1. Tabla de Grados Escolares
-DROP TABLE IF EXISTS `grados`;
-CREATE TABLE `grados` (
-    `id_grado` INT AUTO_INCREMENT PRIMARY KEY,
-    `nombre_grado` VARCHAR(50) NOT NULL UNIQUE,
-    `nivel` ENUM('Preescolar', 'Primaria', 'Secundaria', 'Media') NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Tabla de grados académicos
+CREATE TABLE grados (
+    id_grado INT AUTO_INCREMENT PRIMARY KEY,
+    nombre_grado VARCHAR(50) NOT NULL UNIQUE COMMENT 'Ej: Preescolar, Primero, Segundo, ... Once',
+    nivel_numerico INT NOT NULL UNIQUE COMMENT 'Nivel numérico para ordenamiento (0 para preescolar, 1-11 para grados)',
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB COMMENT='Catálogo de grados académicos del colegio';
 
--- 2. Tabla de Estudiantes
-DROP TABLE IF EXISTS `estudiantes`;
-CREATE TABLE `estudiantes` (
-    `id_estudiante` INT AUTO_INCREMENT PRIMARY KEY,
-    `tipo_documento` ENUM('TI', 'CC', 'CE', 'Pasaporte') NOT NULL,
-    `numero_documento` VARCHAR(20) NOT NULL UNIQUE,
-    `nombres` VARCHAR(100) NOT NULL,
-    `apellidos` VARCHAR(100) NOT NULL,
-    `fecha_nacimiento` DATE NOT NULL,
-    `genero` ENUM('M', 'F', 'Otro') NOT NULL,
-    `direccion` VARCHAR(150) NOT NULL,
-    `telefono` VARCHAR(20),
-    `email` VARCHAR(100) UNIQUE,
-    `estado` ENUM('Activo', 'Graduado', 'Retirado', 'Suspendido') NOT NULL DEFAULT 'Activo',
-    `fecha_registro` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Tabla de estudiantes
+CREATE TABLE estudiantes (
+    id_estudiante INT AUTO_INCREMENT PRIMARY KEY,
+    tipo_documento ENUM('TI', 'CC', 'CE', 'Pasaporte') NOT NULL DEFAULT 'TI',
+    numero_documento VARCHAR(20) NOT NULL UNIQUE,
+    primer_nombre VARCHAR(100) NOT NULL,
+    segundo_nombre VARCHAR(100),
+    primer_apellido VARCHAR(100) NOT NULL,
+    segundo_apellido VARCHAR(100),
+    fecha_nacimiento DATE NOT NULL,
+    genero ENUM('M', 'F', 'Otro') NOT NULL,
+    direccion VARCHAR(255),
+    telefono VARCHAR(20),
+    correo_electronico VARCHAR(100),
+    tipo_sangre VARCHAR(5),
+    alergias TEXT,
+    condiciones_medicas TEXT,
+    fecha_ingreso DATE NOT NULL,
+    estado ENUM('Activo', 'Graduado', 'Retirado', 'Suspendido') DEFAULT 'Activo',
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_documento (tipo_documento, numero_documento),
+    INDEX idx_estado (estado),
+    INDEX idx_nombre (primer_apellido, segundo_apellido, primer_nombre)
+) ENGINE=InnoDB COMMENT='Información completa de estudiantes';
 
--- 3. Tabla de Acudientes / Padres de Familia
-DROP TABLE IF EXISTS `acudientes`;
-CREATE TABLE `acudientes` (
-    `id_acudiente` INT AUTO_INCREMENT PRIMARY KEY,
-    `tipo_documento` ENUM('CC', 'CE', 'Pasaporte') NOT NULL,
-    `numero_documento` VARCHAR(20) NOT NULL UNIQUE,
-    `nombres` VARCHAR(100) NOT NULL,
-    `apellidos` VARCHAR(100) NOT NULL,
-    `parentesco` VARCHAR(50) NOT NULL,
-    `telefono` VARCHAR(20) NOT NULL,
-    `email` VARCHAR(100) NOT NULL,
-    `direccion` VARCHAR(150) NOT NULL,
-    `profesion_ocupacion` VARCHAR(100)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Tabla de acudientes/tutores legales
+CREATE TABLE acudientes (
+    id_acudiente INT AUTO_INCREMENT PRIMARY KEY,
+    tipo_documento ENUM('CC', 'CE', 'Pasaporte') NOT NULL DEFAULT 'CC',
+    numero_documento VARCHAR(20) NOT NULL UNIQUE,
+    primer_nombre VARCHAR(100) NOT NULL,
+    segundo_nombre VARCHAR(100),
+    primer_apellido VARCHAR(100) NOT NULL,
+    segundo_apellido VARCHAR(100),
+    parentesco VARCHAR(50) NOT NULL COMMENT 'Padre, Madre, Abuelo, Tío, Tutor Legal, etc.',
+    telefono_principal VARCHAR(20) NOT NULL,
+    telefono_secundario VARCHAR(20),
+    correo_electronico VARCHAR(100),
+    direccion VARCHAR(255),
+    ocupacion VARCHAR(100),
+    es_responsable_financiero BOOLEAN DEFAULT TRUE COMMENT 'Indica si es responsable de pagos',
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_documento (tipo_documento, numero_documento),
+    INDEX idx_nombre (primer_apellido, segundo_apellido)
+) ENGINE=InnoDB COMMENT='Acudientes y tutores legales';
 
--- 4. Tabla Intermedia Estudiante - Acudiente (Relación con soporte a hermanos)
-DROP TABLE IF EXISTS `estudiante_acudiente`;
-CREATE TABLE `estudiante_acudiente` (
-    `id_estudiante` INT NOT NULL,
-    `id_acudiente` INT NOT NULL,
-    `es_principal` BOOLEAN NOT NULL DEFAULT TRUE,
-    `relacion` VARCHAR(50) NOT NULL,
-    PRIMARY KEY (`id_estudiante`, `id_acudiente`),
-    CONSTRAINT `fk_ea_estudiante` FOREIGN KEY (`id_estudiante`) REFERENCES `estudiantes` (`id_estudiante`) ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT `fk_ea_acudiente` FOREIGN KEY (`id_acudiente`) REFERENCES `acudientes` (`id_acudiente`) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Relación estudiantes-acudientes (muchos a muchos)
+CREATE TABLE estudiante_acudiente (
+    id_estudiante INT NOT NULL,
+    id_acudiente INT NOT NULL,
+    es_principal BOOLEAN DEFAULT FALSE COMMENT 'Acudiente principal para comunicaciones',
+    es_contacto_emergencia BOOLEAN DEFAULT TRUE COMMENT 'Disponible para emergencias',
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id_estudiante, id_acudiente),
+    FOREIGN KEY (id_estudiante) REFERENCES estudiantes(id_estudiante) ON DELETE CASCADE,
+    FOREIGN KEY (id_acudiente) REFERENCES acudientes(id_acudiente) ON DELETE CASCADE,
+    INDEX idx_estudiante (id_estudiante),
+    INDEX idx_acudiente (id_acudiente)
+) ENGINE=InnoDB COMMENT='Relación entre estudiantes y sus acudientes';
 
--- 5. Tabla de Matrículas Anuales
-DROP TABLE IF EXISTS `matriculas`;
-CREATE TABLE `matriculas` (
-    `id_matricula` INT AUTO_INCREMENT PRIMARY KEY,
-    `id_estudiante` INT NOT NULL,
-    `id_grado` INT NOT NULL,
-    `año_academico` INT NOT NULL,
-    `fecha_matricula` DATE NOT NULL,
-    `estado_matricula` ENUM('Matriculado', 'Promovido', 'Reprobado', 'Retirado') DEFAULT 'Matriculado',
-    `costo_matricula` DECIMAL(10,2) NOT NULL,
-    UNIQUE KEY `uk_estudiante_año` (`id_estudiante`, `año_academico`),
-    CONSTRAINT `fk_mat_estudiante` FOREIGN KEY (`id_estudiante`) REFERENCES `estudiantes` (`id_estudiante`) ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT `fk_mat_grado` FOREIGN KEY (`id_grado`) REFERENCES `grados` (`id_grado`) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Tabla de matrículas (historial de grados por año)
+CREATE TABLE matriculas (
+    id_matricula INT AUTO_INCREMENT PRIMARY KEY,
+    id_estudiante INT NOT NULL,
+    id_grado INT NOT NULL,
+    año_academico INT NOT NULL COMMENT 'Año académico (ej: 2024)',
+    estado_matricula ENUM('Activa', 'Completada', 'Retirada') DEFAULT 'Activa',
+    fecha_matricula DATE NOT NULL,
+    fecha_retiro DATE,
+    observaciones TEXT,
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_estudiante) REFERENCES estudiantes(id_estudiante) ON DELETE CASCADE,
+    FOREIGN KEY (id_grado) REFERENCES grados(id_grado),
+    UNIQUE KEY matricula_unica (id_estudiante, año_academico),
+    INDEX idx_año_grado (año_academico, id_grado),
+    INDEX idx_estado (estado_matricula)
+) ENGINE=InnoDB COMMENT='Historial de matrículas de estudiantes por año y grado';
 
--- 6. Tabla de Materias / Asignaturas
-DROP TABLE IF EXISTS `materias`;
-CREATE TABLE `materias` (
-    `id_materia` INT AUTO_INCREMENT PRIMARY KEY,
-    `codigo_materia` VARCHAR(20) NOT NULL UNIQUE,
-    `nombre_materia` VARCHAR(100) NOT NULL,
-    `descripcion` TEXT,
-    `intensidad_horaria` INT NOT NULL,
-    `area` VARCHAR(100) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- ============================================
+-- 2. MÓDULO ACADÉMICO
+-- ============================================
 
--- 7. Tabla de Profesores / Docentes
-DROP TABLE IF EXISTS `profesores`;
-CREATE TABLE `profesores` (
-    `id_profesor` INT AUTO_INCREMENT PRIMARY KEY,
-    `tipo_documento` ENUM('CC', 'CE', 'Pasaporte') NOT NULL,
-    `numero_documento` VARCHAR(20) NOT NULL UNIQUE,
-    `nombres` VARCHAR(100) NOT NULL,
-    `apellidos` VARCHAR(100) NOT NULL,
-    `especialidad` VARCHAR(100) NOT NULL,
-    `email` VARCHAR(100) NOT NULL UNIQUE,
-    `telefono` VARCHAR(20) NOT NULL,
-    `fecha_contratacion` DATE NOT NULL,
-    `estado` ENUM('Activo', 'Inactivo', 'Licencia') DEFAULT 'Activo'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Tabla de materias/asignaturas
+CREATE TABLE materias (
+    id_materia INT AUTO_INCREMENT PRIMARY KEY,
+    codigo_materia VARCHAR(20) NOT NULL UNIQUE COMMENT 'Código único de la materia (ej: MAT-5, ESP-3)',
+    nombre_materia VARCHAR(100) NOT NULL,
+    descripcion TEXT,
+    id_grado INT NOT NULL COMMENT 'Grado al que pertenece la materia',
+    horas_semanales INT DEFAULT 2 COMMENT 'Horas semanales asignadas',
+    esta_activa BOOLEAN DEFAULT TRUE,
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_grado) REFERENCES grados(id_grado),
+    INDEX idx_grado (id_grado),
+    INDEX idx_activa (esta_activa),
+    INDEX idx_codigo (codigo_materia)
+) ENGINE=InnoDB COMMENT='Catálogo de materias por grado';
 
--- 8. Tabla de Asignaciones Académicas de Profesores
-DROP TABLE IF EXISTS `asignaciones_profesor`;
-CREATE TABLE `asignaciones_profesor` (
-    `id_asignacion` INT AUTO_INCREMENT PRIMARY KEY,
-    `id_profesor` INT NOT NULL,
-    `id_materia` INT NOT NULL,
-    `id_grado` INT NOT NULL,
-    `seccion` VARCHAR(5) NOT NULL DEFAULT 'A',
-    `año_academico` INT NOT NULL,
-    `dias_horario` VARCHAR(60) NOT NULL DEFAULT 'Lunes',
-    `hora_inicio` TIME NOT NULL DEFAULT '07:00:00',
-    `hora_fin` TIME NOT NULL DEFAULT '08:30:00',
-    UNIQUE KEY `uk_prof_mat_grado_sec_año` (`id_profesor`, `id_materia`, `id_grado`, `seccion`, `año_academico`),
-    CONSTRAINT `fk_asig_profesor` FOREIGN KEY (`id_profesor`) REFERENCES `profesores` (`id_profesor`) ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT `fk_asig_materia` FOREIGN KEY (`id_materia`) REFERENCES `materias` (`id_materia`) ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT `fk_asig_grado` FOREIGN KEY (`id_grado`) REFERENCES `grados` (`id_grado`) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Tabla de profesores
+CREATE TABLE profesores (
+    id_profesor INT AUTO_INCREMENT PRIMARY KEY,
+    tipo_documento ENUM('CC', 'CE', 'Pasaporte') NOT NULL DEFAULT 'CC',
+    numero_documento VARCHAR(20) NOT NULL UNIQUE,
+    primer_nombre VARCHAR(100) NOT NULL,
+    segundo_nombre VARCHAR(100),
+    primer_apellido VARCHAR(100) NOT NULL,
+    segundo_apellido VARCHAR(100),
+    correo_electronico VARCHAR(100) NOT NULL UNIQUE,
+    telefono VARCHAR(20),
+    especializacion VARCHAR(100) COMMENT 'Área de especialización (Matemáticas, Español, etc.)',
+    fecha_contratacion DATE NOT NULL,
+    estado ENUM('Activo', 'Inactivo', 'Licencia') DEFAULT 'Activo',
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_documento (tipo_documento, numero_documento),
+    INDEX idx_estado (estado),
+    INDEX idx_nombre (primer_apellido, segundo_apellido)
+) ENGINE=InnoDB COMMENT='Información de profesores';
 
--- 9. Tabla de Inscripciones de Estudiantes a Materias
-DROP TABLE IF EXISTS `inscripciones_materia`;
-CREATE TABLE `inscripciones_materia` (
-    `id_inscripcion` INT AUTO_INCREMENT PRIMARY KEY,
-    `id_estudiante` INT NOT NULL,
-    `id_asignacion` INT NOT NULL,
-    `año_academico` INT NOT NULL,
-    `estado_inscripcion` ENUM('Cursando', 'Aprobada', 'Reprobada', 'Cancelada') DEFAULT 'Cursando',
-    UNIQUE KEY `uk_est_asig_año` (`id_estudiante`, `id_asignacion`, `año_academico`),
-    CONSTRAINT `fk_insc_estudiante` FOREIGN KEY (`id_estudiante`) REFERENCES `estudiantes` (`id_estudiante`) ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT `fk_insc_asignacion` FOREIGN KEY (`id_asignacion`) REFERENCES `asignaciones_profesor` (`id_asignacion`) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Asignación de materias a profesores
+CREATE TABLE asignaciones_profesor (
+    id_asignacion INT AUTO_INCREMENT PRIMARY KEY,
+    id_profesor INT NOT NULL,
+    id_materia INT NOT NULL,
+    año_academico INT NOT NULL,
+    seccion VARCHAR(10) COMMENT 'Sección o grupo (A, B, C)',
+    dias_horario VARCHAR(60) NOT NULL DEFAULT 'Lunes' COMMENT 'Días asignados (justificado por req. 1.2)',
+    hora_inicio TIME NOT NULL DEFAULT '07:00:00' COMMENT 'Hora de inicio (justificado por req. 1.2)',
+    hora_fin TIME NOT NULL DEFAULT '08:30:00' COMMENT 'Hora de fin (justificado por req. 1.2)',
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_profesor) REFERENCES profesores(id_profesor) ON DELETE CASCADE,
+    FOREIGN KEY (id_materia) REFERENCES materias(id_materia) ON DELETE CASCADE,
+    UNIQUE KEY asignacion_unica (id_profesor, id_materia, año_academico, seccion),
+    INDEX idx_profesor_año (id_profesor, año_academico),
+    INDEX idx_materia_año (id_materia, año_academico)
+) ENGINE=InnoDB COMMENT='Asignación de profesores a materias por año académico';
 
--- 10. Tabla de Registros Académicos (Calificaciones con CHECK 0.0 a 5.0)
-DROP TABLE IF EXISTS `registros_academicos`;
-CREATE TABLE `registros_academicos` (
-    `id_registro` INT AUTO_INCREMENT PRIMARY KEY,
-    `id_inscripcion` INT NOT NULL,
-    `año_academico` INT NOT NULL,
-    `periodo` ENUM('I', 'II', 'III', 'IV', 'Final') NOT NULL,
-    `valor_nota` DECIMAL(2,1) NOT NULL,
-    `porcentaje` DECIMAL(5,2) DEFAULT 25.00,
-    `observaciones` VARCHAR(255),
-    `fecha_registro` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT `chk_valor_nota` CHECK (`valor_nota` >= 0.0 AND `valor_nota` <= 5.0),
-    CONSTRAINT `fk_ra_inscripcion` FOREIGN KEY (`id_inscripcion`) REFERENCES `inscripciones_materia` (`id_inscripcion`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Inscripción de estudiantes en materias
+CREATE TABLE inscripciones_materia (
+    id_inscripcion INT AUTO_INCREMENT PRIMARY KEY,
+    id_estudiante INT NOT NULL,
+    id_materia INT NOT NULL,
+    año_academico INT NOT NULL,
+    periodo_academico ENUM('I', 'II', 'III', 'IV') NOT NULL COMMENT 'Período académico',
+    seccion VARCHAR(10) COMMENT 'Sección o grupo asignado',
+    fecha_inscripcion DATE NOT NULL,
+    estado ENUM('Activa', 'Retirada', 'Completada') DEFAULT 'Activa',
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_estudiante) REFERENCES estudiantes(id_estudiante) ON DELETE CASCADE,
+    FOREIGN KEY (id_materia) REFERENCES materias(id_materia) ON DELETE CASCADE,
+    UNIQUE KEY inscripcion_unica (id_estudiante, id_materia, año_academico, periodo_academico),
+    INDEX idx_estudiante_año (id_estudiante, año_academico),
+    INDEX idx_materia_periodo (id_materia, periodo_academico)
+) ENGINE=InnoDB COMMENT='Inscripción de estudiantes en materias específicas';
 
--- 11. Tabla de Asistencias Diarias
-DROP TABLE IF EXISTS `asistencias`;
-CREATE TABLE `asistencias` (
-    `id_asistencia` INT AUTO_INCREMENT PRIMARY KEY,
-    `id_estudiante` INT NOT NULL,
-    `id_asignacion` INT NOT NULL,
-    `fecha` DATE NOT NULL,
-    `estado_asistencia` ENUM('Presente', 'Ausente', 'Tardanza', 'Excusa Médica') NOT NULL,
-    `observaciones` VARCHAR(255),
-    UNIQUE KEY `uk_est_asig_fecha` (`id_estudiante`, `id_asignacion`, `fecha`),
-    CONSTRAINT `fk_asis_estudiante` FOREIGN KEY (`id_estudiante`) REFERENCES `estudiantes` (`id_estudiante`) ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT `fk_asis_asignacion` FOREIGN KEY (`id_asignacion`) REFERENCES `asignaciones_profesor` (`id_asignacion`) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Tabla de registros académicos (calificaciones/notas)
+CREATE TABLE registros_academicos (
+    id_registro INT AUTO_INCREMENT PRIMARY KEY,
+    id_estudiante INT NOT NULL,
+    id_materia INT NOT NULL,
+    id_profesor INT NOT NULL,
+    año_academico INT NOT NULL,
+    periodo_academico ENUM('I', 'II', 'III', 'IV', 'Final') NOT NULL,
+    valor_nota DECIMAL(2,1) NOT NULL COMMENT 'Nota de 0.0 a 5.0 según estándar colombiano',
+    observaciones TEXT,
+    fecha_registro DATE NOT NULL,
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_estudiante) REFERENCES estudiantes(id_estudiante) ON DELETE CASCADE,
+    FOREIGN KEY (id_materia) REFERENCES materias(id_materia) ON DELETE CASCADE,
+    FOREIGN KEY (id_profesor) REFERENCES profesores(id_profesor),
+    CHECK (valor_nota >= 0.0 AND valor_nota <= 5.0),
+    UNIQUE KEY registro_unico (id_estudiante, id_materia, año_academico, periodo_academico),
+    INDEX idx_estudiante_año (id_estudiante, año_academico),
+    INDEX idx_materia_periodo (id_materia, periodo_academico),
+    INDEX idx_valor_nota (valor_nota)
+) ENGINE=InnoDB COMMENT='Registro de calificaciones de estudiantes';
 
--- 12. Tabla de Clubes Extracurriculares
-DROP TABLE IF EXISTS `clubes`;
-CREATE TABLE `clubes` (
-    `id_club` INT AUTO_INCREMENT PRIMARY KEY,
-    `nombre_club` VARCHAR(100) NOT NULL UNIQUE,
-    `descripcion` TEXT,
-    `id_profesor_supervisor` INT NOT NULL,
-    `capacidad_maxima` INT NOT NULL DEFAULT 30,
-    `horario_reunion` VARCHAR(100),
-    `lugar_reunion` VARCHAR(100),
-    `estado` ENUM('Activo', 'Inactivo') DEFAULT 'Activo',
-    CONSTRAINT `fk_club_supervisor` FOREIGN KEY (`id_profesor_supervisor`) REFERENCES `profesores` (`id_profesor`) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Tabla de asistencia
+CREATE TABLE asistencias (
+    id_asistencia INT AUTO_INCREMENT PRIMARY KEY,
+    id_estudiante INT NOT NULL,
+    id_materia INT NOT NULL,
+    fecha_asistencia DATE NOT NULL,
+    estado_asistencia ENUM('Presente', 'Ausente', 'Tardanza', 'Excusa Médica') NOT NULL,
+    observaciones TEXT,
+    registrado_por INT COMMENT 'ID del profesor que registró la asistencia',
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_estudiante) REFERENCES estudiantes(id_estudiante) ON DELETE CASCADE,
+    FOREIGN KEY (id_materia) REFERENCES materias(id_materia) ON DELETE CASCADE,
+    FOREIGN KEY (registrado_por) REFERENCES profesores(id_profesor),
+    UNIQUE KEY asistencia_unica (id_estudiante, id_materia, fecha_asistencia),
+    INDEX idx_estudiante_fecha (id_estudiante, fecha_asistencia),
+    INDEX idx_materia_fecha (id_materia, fecha_asistencia),
+    INDEX idx_estado (estado_asistencia)
+) ENGINE=InnoDB COMMENT='Registro de asistencia diaria de estudiantes';
 
--- 13. Tabla de Membresías en Clubes
-DROP TABLE IF EXISTS `membresias_club`;
-CREATE TABLE `membresias_club` (
-    `id_membresia` INT AUTO_INCREMENT PRIMARY KEY,
-    `id_club` INT NOT NULL,
-    `id_estudiante` INT NOT NULL,
-    `fecha_ingreso` DATE NOT NULL,
-    `estado` ENUM('Activa', 'Retirada') DEFAULT 'Activa',
-    UNIQUE KEY `uk_club_estudiante` (`id_club`, `id_estudiante`),
-    CONSTRAINT `fk_mem_club` FOREIGN KEY (`id_club`) REFERENCES `clubes` (`id_club`) ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT `fk_mem_estudiante` FOREIGN KEY (`id_estudiante`) REFERENCES `estudiantes` (`id_estudiante`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- ============================================
+-- 3. MÓDULO DE ACTIVIDADES EXTRACURRICULARES
+-- ============================================
 
--- 14. Tabla de Eventos Institucionales
-DROP TABLE IF EXISTS `eventos`;
-CREATE TABLE `eventos` (
-    `id_evento` INT AUTO_INCREMENT PRIMARY KEY,
-    `nombre_evento` VARCHAR(150) NOT NULL,
-    `tipo_evento` ENUM('Académico', 'Cultural', 'Deportivo', 'Social', 'Científico') NOT NULL,
-    `descripcion` TEXT,
-    `fecha_evento` DATE NOT NULL,
-    `lugar` VARCHAR(100) NOT NULL,
-    `tiene_competencia` BOOLEAN NOT NULL DEFAULT FALSE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Tabla de clubes
+CREATE TABLE clubes (
+    id_club INT AUTO_INCREMENT PRIMARY KEY,
+    nombre_club VARCHAR(100) NOT NULL UNIQUE,
+    descripcion TEXT,
+    id_profesor_supervisor INT COMMENT 'Profesor encargado del club',
+    capacidad_maxima INT DEFAULT 30 COMMENT 'Cupo máximo de estudiantes',
+    horario_reunion VARCHAR(100) COMMENT 'Días y horario de reunión (ej: Martes 3-5 PM)',
+    esta_activo BOOLEAN DEFAULT TRUE,
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_profesor_supervisor) REFERENCES profesores(id_profesor),
+    INDEX idx_activo (esta_activo),
+    INDEX idx_nombre (nombre_club)
+) ENGINE=InnoDB COMMENT='Catálogo de clubes extracurriculares';
 
--- 15. Tabla de Participantes en Eventos
-DROP TABLE IF EXISTS `participantes_evento`;
-CREATE TABLE `participantes_evento` (
-    `id_participacion` INT AUTO_INCREMENT PRIMARY KEY,
-    `id_evento` INT NOT NULL,
-    `id_estudiante` INT NOT NULL,
-    `puesto` ENUM('1er Lugar', '2do Lugar', '3er Lugar', 'Participante') DEFAULT 'Participante',
-    `observaciones` VARCHAR(255),
-    UNIQUE KEY `uk_evento_estudiante` (`id_evento`, `id_estudiante`),
-    CONSTRAINT `fk_pe_evento` FOREIGN KEY (`id_evento`) REFERENCES `eventos` (`id_evento`) ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT `fk_pe_estudiante` FOREIGN KEY (`id_estudiante`) REFERENCES `estudiantes` (`id_estudiante`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Membresías en clubes
+CREATE TABLE membresias_club (
+    id_membresia INT AUTO_INCREMENT PRIMARY KEY,
+    id_estudiante INT NOT NULL,
+    id_club INT NOT NULL,
+    fecha_ingreso DATE NOT NULL,
+    estado_membresia ENUM('Activa', 'Retirada') DEFAULT 'Activa',
+    fecha_retiro DATE,
+    motivo_retiro TEXT,
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_estudiante) REFERENCES estudiantes(id_estudiante) ON DELETE CASCADE,
+    FOREIGN KEY (id_club) REFERENCES clubes(id_club) ON DELETE CASCADE,
+    INDEX idx_estudiante (id_estudiante),
+    INDEX idx_club_estado (id_club, estado_membresia)
+) ENGINE=InnoDB COMMENT='Membresías de estudiantes en clubes';
 
--- 16. Tabla de Conceptos de Pago
-DROP TABLE IF EXISTS `conceptos_pago`;
-CREATE TABLE `conceptos_pago` (
-    `id_concepto` INT AUTO_INCREMENT PRIMARY KEY,
-    `codigo_concepto` VARCHAR(20) NOT NULL UNIQUE,
-    `nombre_concepto` VARCHAR(100) NOT NULL,
-    `descripcion` TEXT,
-    `monto_base` DECIMAL(12,2) NOT NULL,
-    `es_periodico` BOOLEAN DEFAULT FALSE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Tabla de eventos
+CREATE TABLE eventos (
+    id_evento INT AUTO_INCREMENT PRIMARY KEY,
+    nombre_evento VARCHAR(150) NOT NULL,
+    descripcion TEXT,
+    tipo_evento ENUM('Académico', 'Cultural', 'Deportivo', 'Social', 'Científico') NOT NULL,
+    fecha_evento DATE NOT NULL,
+    lugar VARCHAR(150),
+    tiene_competencia BOOLEAN DEFAULT FALSE COMMENT 'Indica si el evento tiene competencia con posiciones',
+    id_organizador INT COMMENT 'Profesor organizador del evento',
+    esta_activo BOOLEAN DEFAULT TRUE,
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_organizador) REFERENCES profesores(id_profesor),
+    INDEX idx_fecha (fecha_evento),
+    INDEX idx_tipo (tipo_evento),
+    INDEX idx_activo (esta_activo)
+) ENGINE=InnoDB COMMENT='Catálogo de eventos del colegio';
 
--- 17. Tabla de Pagos
-DROP TABLE IF EXISTS `pagos`;
-CREATE TABLE `pagos` (
-    `id_pago` INT AUTO_INCREMENT PRIMARY KEY,
-    `numero_recibo` VARCHAR(30) UNIQUE,
-    `id_estudiante` INT NOT NULL,
-    `id_concepto` INT NOT NULL,
-    `año_academico` INT NOT NULL,
-    `monto_pagado` DECIMAL(12,2) NOT NULL,
-    `metodo_pago` ENUM('Efectivo', 'Transferencia', 'Tarjeta Débito', 'Tarjeta Crédito', 'Cheque') NOT NULL,
-    `fecha_pago` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `estado_pago` ENUM('Pagado', 'Pendiente', 'Anulado') DEFAULT 'Pagado',
-    `descuento_aplicado` DECIMAL(12,2) DEFAULT 0.00,
-    `observaciones` VARCHAR(255),
-    CONSTRAINT `fk_pago_estudiante` FOREIGN KEY (`id_estudiante`) REFERENCES `estudiantes` (`id_estudiante`) ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT `fk_pago_concepto` FOREIGN KEY (`id_concepto`) REFERENCES `conceptos_pago` (`id_concepto`) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Participantes en eventos
+CREATE TABLE participantes_evento (
+    id_participacion INT AUTO_INCREMENT PRIMARY KEY,
+    id_evento INT NOT NULL,
+    id_estudiante INT NOT NULL,
+    rol_participacion ENUM('Participante', 'Competidor', 'Organizador', 'Asistente') DEFAULT 'Participante',
+    posicion_obtenida VARCHAR(20) COMMENT 'Posición obtenida si hay competencia (1er Lugar, 2do Lugar, 3er Lugar, Participante)',
+    observaciones TEXT,
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_evento) REFERENCES eventos(id_evento) ON DELETE CASCADE,
+    FOREIGN KEY (id_estudiante) REFERENCES estudiantes(id_estudiante) ON DELETE CASCADE,
+    UNIQUE KEY participacion_unica (id_evento, id_estudiante),
+    INDEX idx_evento (id_evento),
+    INDEX idx_estudiante (id_estudiante)
+) ENGINE=InnoDB COMMENT='Registro de participación de estudiantes en eventos';
 
--- 18. Tabla de Facturas Electrónicas
--- NOTA: nombre_archivo_pdf almacena el nombre del archivo plano .txt generado nativamente (ej. factura_000123.txt)
-DROP TABLE IF EXISTS `facturas`;
-CREATE TABLE `facturas` (
-    `id_factura` INT AUTO_INCREMENT PRIMARY KEY,
-    `id_pago` INT NOT NULL UNIQUE,
-    `numero_factura` VARCHAR(50) NOT NULL UNIQUE,
-    `cufe` VARCHAR(255) NOT NULL,
-    `nombre_archivo_pdf` VARCHAR(255) NOT NULL,
-    `ruta_archivo` VARCHAR(255) NOT NULL,
-    `fecha_emision` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `subtotal` DECIMAL(12,2) NOT NULL,
-    `iva` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
-    `total` DECIMAL(12,2) NOT NULL,
-    CONSTRAINT `fk_factura_pago` FOREIGN KEY (`id_pago`) REFERENCES `pagos` (`id_pago`) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- ============================================
+-- 4. MÓDULO FINANCIERO
+-- ============================================
 
--- 19. Tabla de Categorías de Recursos
-DROP TABLE IF EXISTS `categorias_recurso`;
-CREATE TABLE `categorias_recurso` (
-    `id_categoria` INT AUTO_INCREMENT PRIMARY KEY,
-    `nombre_categoria` VARCHAR(100) NOT NULL UNIQUE,
-    `descripcion` TEXT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Conceptos de pago (catálogo)
+CREATE TABLE conceptos_pago (
+    id_concepto INT AUTO_INCREMENT PRIMARY KEY,
+    codigo_concepto VARCHAR(20) NOT NULL UNIQUE,
+    nombre_concepto VARCHAR(100) NOT NULL,
+    descripcion TEXT,
+    monto_base DECIMAL(10,2) NOT NULL COMMENT 'Valor base del concepto en pesos colombianos',
+    es_recurrente BOOLEAN DEFAULT FALSE COMMENT 'Indica si es un pago recurrente (ej: pensión mensual)',
+    esta_activo BOOLEAN DEFAULT TRUE,
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_activo (esta_activo),
+    INDEX idx_codigo (codigo_concepto)
+) ENGINE=InnoDB COMMENT='Catálogo de conceptos de pago del colegio';
 
--- 20. Tabla de Recursos (Biblioteca, Laboratorios, Tecnología)
-DROP TABLE IF EXISTS `recursos`;
-CREATE TABLE `recursos` (
-    `id_recurso` INT AUTO_INCREMENT PRIMARY KEY,
-    `codigo_unico` VARCHAR(50) NOT NULL UNIQUE,
-    `nombre_recurso` VARCHAR(150) NOT NULL,
-    `id_categoria` INT NOT NULL,
-    `ubicacion_fisica` VARCHAR(100) NOT NULL,
-    `estado_recurso` ENUM('Disponible', 'Prestado', 'En Mantenimiento', 'Dado de Baja') NOT NULL DEFAULT 'Disponible',
-    `fecha_adquisicion` DATE,
-    CONSTRAINT `fk_rec_categoria` FOREIGN KEY (`id_categoria`) REFERENCES `categorias_recurso` (`id_categoria`) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Tabla de pagos
+CREATE TABLE pagos (
+    id_pago INT AUTO_INCREMENT PRIMARY KEY,
+    id_estudiante INT NOT NULL,
+    id_acudiente INT COMMENT 'Acudiente que realizó el pago',
+    id_concepto INT NOT NULL,
+    monto_pagado DECIMAL(10,2) NOT NULL,
+    descuento_aplicado DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT 'Descuento por beca o hermanos (justificado por req. 3.1)',
+    estado_pago ENUM('Pagado', 'Pendiente', 'Anulado') NOT NULL DEFAULT 'Pagado' COMMENT 'Estado del pago para control de mora (justificado por req. 3.2)',
+    fecha_pago DATE NOT NULL,
+    metodo_pago ENUM('Efectivo', 'Transferencia', 'Tarjeta Débito', 'Tarjeta Crédito', 'Cheque') NOT NULL,
+    numero_recibo VARCHAR(50) UNIQUE,
+    año_academico INT COMMENT 'Año al que aplica el pago',
+    periodo_academico ENUM('I', 'II', 'III', 'IV', 'Anual') COMMENT 'Período al que aplica el pago',
+    notas TEXT,
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_estudiante) REFERENCES estudiantes(id_estudiante) ON DELETE CASCADE,
+    FOREIGN KEY (id_acudiente) REFERENCES acudientes(id_acudiente),
+    FOREIGN KEY (id_concepto) REFERENCES conceptos_pago(id_concepto),
+    INDEX idx_estudiante_fecha (id_estudiante, fecha_pago),
+    INDEX idx_concepto (id_concepto),
+    INDEX idx_fecha (fecha_pago),
+    INDEX idx_recibo (numero_recibo)
+) ENGINE=InnoDB COMMENT='Registro de todos los pagos realizados';
 
--- 21. Tabla de Préstamos a Estudiantes
-DROP TABLE IF EXISTS `prestamos_estudiante`;
-CREATE TABLE `prestamos_estudiante` (
-    `id_prestamo_estudiante` INT AUTO_INCREMENT PRIMARY KEY,
-    `id_recurso` INT NOT NULL,
-    `id_estudiante` INT NOT NULL,
-    `fecha_prestamo` DATE NOT NULL,
-    `fecha_devolucion_programada` DATE NOT NULL,
-    `fecha_devolucion_real` DATE,
-    `estado_prestamo` ENUM('Activo', 'Devuelto', 'Vencido') NOT NULL DEFAULT 'Activo',
-    `observaciones` VARCHAR(255),
-    CONSTRAINT `fk_pe_recurso` FOREIGN KEY (`id_recurso`) REFERENCES `recursos` (`id_recurso`) ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT `fk_pe_est` FOREIGN KEY (`id_estudiante`) REFERENCES `estudiantes` (`id_estudiante`) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Tabla de facturas electrónicas
+CREATE TABLE facturas (
+    id_factura INT AUTO_INCREMENT PRIMARY KEY,
+    numero_factura VARCHAR(50) NOT NULL UNIQUE COMMENT 'Número consecutivo de factura',
+    id_pago INT NOT NULL COMMENT 'Pago asociado a esta factura',
+    fecha_emision DATE NOT NULL,
+    cufe VARCHAR(100) COMMENT 'Código Único de Factura Electrónica (simulado)',
+    nombre_archivo_pdf VARCHAR(255) COMMENT 'Nombre del archivo PDF generado',
+    ruta_archivo VARCHAR(500) COMMENT 'Ruta completa donde se guardó el PDF',
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_pago) REFERENCES pagos(id_pago) ON DELETE CASCADE,
+    INDEX idx_numero_factura (numero_factura),
+    INDEX idx_fecha_emision (fecha_emision),
+    INDEX idx_pago (id_pago)
+) ENGINE=InnoDB COMMENT='Registro de facturas electrónicas generadas';
 
--- 22. Tabla de Préstamos a Profesores
-DROP TABLE IF EXISTS `prestamos_profesor`;
-CREATE TABLE `prestamos_profesor` (
-    `id_prestamo_profesor` INT AUTO_INCREMENT PRIMARY KEY,
-    `id_recurso` INT NOT NULL,
-    `id_profesor` INT NOT NULL,
-    `fecha_prestamo` DATE NOT NULL,
-    `fecha_devolucion_programada` DATE NOT NULL,
-    `fecha_devolucion_real` DATE,
-    `estado_prestamo` ENUM('Activo', 'Devuelto', 'Vencido') NOT NULL DEFAULT 'Activo',
-    `observaciones` VARCHAR(255),
-    CONSTRAINT `fk_pp_recurso` FOREIGN KEY (`id_recurso`) REFERENCES `recursos` (`id_recurso`) ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT `fk_pp_prof` FOREIGN KEY (`id_profesor`) REFERENCES `profesores` (`id_profesor`) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- ============================================
+-- 5. MÓDULO DE GESTIÓN DE RECURSOS
+-- ============================================
 
-SET FOREIGN_KEY_CHECKS = 1;
+-- Categorías de recursos
+CREATE TABLE categorias_recurso (
+    id_categoria INT AUTO_INCREMENT PRIMARY KEY,
+    nombre_categoria VARCHAR(50) NOT NULL UNIQUE,
+    descripcion TEXT,
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB COMMENT='Categorías de recursos (Libro, Equipo de Laboratorio, etc.)';
 
--- =============================================================================
--- SECCIÓN 2: DML (POBLACIÓN DE DATOS SEMILLA REALISTAS PARA COLOMBIA)
--- =============================================================================
+-- Tabla de recursos del colegio
+CREATE TABLE recursos (
+    id_recurso INT AUTO_INCREMENT PRIMARY KEY,
+    codigo_recurso VARCHAR(50) NOT NULL UNIQUE COMMENT 'Código de inventario único',
+    nombre_recurso VARCHAR(150) NOT NULL,
+    id_categoria INT NOT NULL,
+    descripcion TEXT,
+    fecha_adquisicion DATE,
+    ubicacion_fisica VARCHAR(100) COMMENT 'Ubicación física (Biblioteca, Laboratorio 1, etc.)',
+    estado_recurso ENUM('Disponible', 'Prestado', 'En Mantenimiento', 'Dado de Baja') DEFAULT 'Disponible',
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_categoria) REFERENCES categorias_recurso(id_categoria),
+    INDEX idx_codigo (codigo_recurso),
+    INDEX idx_estado (estado_recurso),
+    INDEX idx_categoria (id_categoria),
+    INDEX idx_nombre (nombre_recurso)
+) ENGINE=InnoDB COMMENT='Inventario de recursos prestables del colegio';
 
--- -----------------------------------------------------------------------------
--- 2.1 INSERCIÓN DE GRADOS ESCOLARES (12 Registros)
--- -----------------------------------------------------------------------------
-INSERT INTO `grados` (`id_grado`, `nombre_grado`, `nivel`) VALUES
-(1, 'Transición', 'Preescolar'),
-(2, 'Primero', 'Primaria'),
-(3, 'Segundo', 'Primaria'),
-(4, 'Tercero', 'Primaria'),
-(5, 'Cuarto', 'Primaria'),
-(6, 'Quinto', 'Primaria'),
-(7, 'Sexto', 'Secundaria'),
-(8, 'Séptimo', 'Secundaria'),
-(9, 'Octavo', 'Secundaria'),
-(10, 'Noveno', 'Secundaria'),
-(11, 'Décimo', 'Media'),
-(12, 'Undécimo', 'Media');
+-- Tabla de préstamos de recursos a ESTUDIANTES
+CREATE TABLE prestamos_estudiante (
+    id_prestamo INT AUTO_INCREMENT PRIMARY KEY,
+    id_recurso INT NOT NULL,
+    id_estudiante INT NOT NULL COMMENT 'Estudiante que toma prestado el recurso',
+    fecha_prestamo DATE NOT NULL,
+    fecha_devolucion_esperada DATE NOT NULL,
+    fecha_devolucion_real DATE,
+    estado_prestamo ENUM('Activo', 'Devuelto', 'Vencido') DEFAULT 'Activo',
+    observaciones TEXT,
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_recurso) REFERENCES recursos(id_recurso) ON DELETE CASCADE,
+    FOREIGN KEY (id_estudiante) REFERENCES estudiantes(id_estudiante) ON DELETE CASCADE,
+    INDEX idx_recurso_estado (id_recurso, estado_prestamo),
+    INDEX idx_estudiante (id_estudiante),
+    INDEX idx_estado (estado_prestamo),
+    INDEX idx_fecha_devolucion (fecha_devolucion_esperada)
+) ENGINE=InnoDB COMMENT='Registro de préstamos de recursos a estudiantes';
 
--- -----------------------------------------------------------------------------
--- 2.2 INSERCIÓN DE ESTUDIANTES (32 Registros - Mínimo 30)
--- -----------------------------------------------------------------------------
-INSERT INTO `estudiantes` (`id_estudiante`, `tipo_documento`, `numero_documento`, `nombres`, `apellidos`, `fecha_nacimiento`, `genero`, `direccion`, `telefono`, `email`, `estado`) VALUES
-(1, 'TI', '1090123451', 'Juan David', 'Gómez Torres', '2010-04-15', 'M', 'Calle 15 # 4-32, La Playa, Cúcuta', '3104567890', 'juan.gomez@littlehorizons.edu.co', 'Activo'),
-(2, 'TI', '1090123452', 'Sofía Valentina', 'Rodríguez Silva', '2011-08-22', 'F', 'Av. 0 # 12-45, Barrio Blanco, Cúcuta', '3115678901', 'sofia.rodriguez@littlehorizons.edu.co', 'Activo'),
-(3, 'TI', '1090123453', 'Mateo Andrés', 'Martínez Castro', '2009-02-10', 'M', 'Calle 8 # 19-20, Caobos, Cúcuta', '3126789012', 'mateo.martinez@littlehorizons.edu.co', 'Activo'),
-(4, 'TI', '1090123454', 'Isabella', 'Morales Peña', '2012-11-05', 'F', 'Av. Guaimaral # 5E-30, Cúcuta', '3137890123', 'isabella.morales@littlehorizons.edu.co', 'Activo'),
-(5, 'TI', '1090123455', 'Santiago Alejandro', 'Díaz Rojas', '2008-06-18', 'M', 'Calle 11 # 2E-15, Bellavista, Cúcuta', '3148901234', 'santiago.diaz@littlehorizons.edu.co', 'Activo'),
-(6, 'TI', '1090123456', 'Valentina María', 'Restrepo Gómez', '2010-09-12', 'F', 'Calle 10 # 3E-44, Quinta Oriental, Cúcuta', '3159012345', 'valentina.restrepo@littlehorizons.edu.co', 'Activo'),
-(7, 'TI', '1090123457', 'Camilo Andrés', 'Restrepo Gómez', '2013-03-25', 'M', 'Calle 10 # 3E-44, Quinta Oriental, Cúcuta', '3159012345', 'camilo.restrepo@littlehorizons.edu.co', 'Activo'),
-(8, 'TI', '1090123458', 'Mariana', 'López Vargas', '2011-01-30', 'F', 'Av. 4 # 8-12, Centro, Cúcuta', '3160123456', 'mariana.lopez@littlehorizons.edu.co', 'Activo'),
-(9, 'TI', '1090123459', 'Samuel Esteban', 'Pérez Herrera', '2012-07-14', 'M', 'Calle 18 # 0-40, La Riviera, Cúcuta', '3171234567', 'samuel.perez@littlehorizons.edu.co', 'Activo'),
-(10, 'TI', '1090123460', 'Luciana', 'Hernández Duque', '2009-10-08', 'F', 'Av. 11E # 5-60, Colsag, Cúcuta', '3182345678', 'luciana.hernandez@littlehorizons.edu.co', 'Activo'),
-(11, 'TI', '1090123461', 'Nicolás Felipe', 'Castillo Moreno', '2010-12-03', 'M', 'Calle 2N # 4-18, Prados del Norte, Cúcuta', '3193456789', 'nicolas.castillo@littlehorizons.edu.co', 'Activo'),
-(12, 'TI', '1090123462', 'Gabriela', 'Castro Mendoza', '2013-05-19', 'F', 'Av. 6 # 14-22, Lleras Restrepo, Cúcuta', '3204567891', 'gabriela.castro@littlehorizons.edu.co', 'Activo'),
-(13, 'TI', '1090123463', 'Tomás Eduardo', 'Ramírez Ortiz', '2008-09-27', 'M', 'Calle 13 # 1E-80, Ceiba, Cúcuta', '3215678902', 'tomas.ramirez@littlehorizons.edu.co', 'Activo'),
-(14, 'TI', '1090123464', 'Salomé', 'Vargas Rincón', '2011-04-02', 'F', 'Av. Grancolombia # 8-50, Cúcuta', '3226789013', 'salome.vargas@littlehorizons.edu.co', 'Activo'),
-(15, 'TI', '1090123465', 'Emiliano', 'Pardo Suárez', '2012-08-16', 'M', 'Calle 7 # 15-30, San Luis, Cúcuta', '3237890124', 'emiliano.pardo@littlehorizons.edu.co', 'Activo'),
-(16, 'TI', '1090123466', 'Martín Alfonso', 'Ospina Beltrán', '2010-03-11', 'M', 'Av. Libertadores # 10-05, Cúcuta', '3001234568', 'martin.ospina@littlehorizons.edu.co', 'Activo'),
-(17, 'TI', '1090123467', 'Daniel Felipe', 'Rivas Navarro', '2009-07-21', 'M', 'Calle 16 # 3-10, La Playa, Cúcuta', '3012345679', 'daniel.rivas@littlehorizons.edu.co', 'Activo'),
-(18, 'TI', '1090123468', 'Sara Sofía', 'Cárdenas Gil', '2013-10-04', 'F', 'Av. 2 # 9-45, Latino, Cúcuta', '3023456780', 'sara.cardenas@littlehorizons.edu.co', 'Activo'),
-(19, 'TI', '1090123469', 'Jerónimo', 'Cruz Bustamante', '2008-11-29', 'M', 'Calle 12 # 5E-12, Popular, Cúcuta', '3034567891', 'jeronimo.cruz@littlehorizons.edu.co', 'Activo'),
-(20, 'TI', '1090123470', 'Valeria', 'Méndez Parra', '2011-06-17', 'F', 'Av. 5 # 16-35, Guaimaral, Cúcuta', '3045678902', 'valeria.mendez@littlehorizons.edu.co', 'Activo'),
-(21, 'TI', '1090123471', 'Emmanuel', 'Vega Salcedo', '2012-02-24', 'M', 'Calle 9 # 8-60, Centro, Cúcuta', '3056789013', 'emmanuel.vega@littlehorizons.edu.co', 'Activo'),
-(22, 'TI', '1090123472', 'Antonella', 'Duarte Quintero', '2010-05-09', 'F', 'Av. 3E # 11-18, Quinta Oriental, Cúcuta', '3067890124', 'antonella.duarte@littlehorizons.edu.co', 'Activo'),
-(23, 'TI', '1090123473', 'Matías', 'Caicedo Barreto', '2009-12-14', 'M', 'Calle 6 # 20-15, Caobos, Cúcuta', '3078901235', 'matias.caicedo@littlehorizons.edu.co', 'Activo'),
-(24, 'TI', '1090123474', 'Juan José', 'Flórez Villamizar', '2013-01-18', 'M', 'Av. 0 # 15-50, Barrio Blanco, Cúcuta', '3089012346', 'juanjose.florez@littlehorizons.edu.co', 'Activo'),
-(25, 'TI', '1090123475', 'Laura Camila', 'Serrano Peña', '2008-08-03', 'F', 'Calle 14 # 4E-22, La Riviera, Cúcuta', '3090123457', 'laura.serrano@littlehorizons.edu.co', 'Activo'),
-(26, 'TI', '1090123476', 'Samuel David', 'Monroy Cadena', '2011-09-09', 'M', 'Av. 8E # 3-40, Colsag, Cúcuta', '3101122334', 'samuel.monroy@littlehorizons.edu.co', 'Activo'),
-(27, 'TI', '1090123477', 'María José', 'Roa León', '2012-04-12', 'F', 'Calle 17 # 6-30, San Mateo, Cúcuta', '3112233445', 'mariajose.roa@littlehorizons.edu.co', 'Activo'),
-(28, 'TI', '1090123478', 'David Santiago', 'Carvajal Prieto', '2010-07-28', 'M', 'Av. 1 # 10-15, Bellavista, Cúcuta', '3123344556', 'david.carvajal@littlehorizons.edu.co', 'Activo'),
-(29, 'TI', '1090123479', 'Manuela', 'Benítez Salazar', '2009-03-06', 'F', 'Calle 5 # 18-05, Caobos, Cúcuta', '3134455667', 'manuela.benitez@littlehorizons.edu.co', 'Activo'),
-(30, 'CC', '1090123480', 'Lucas', 'Guerrero Polo', '2007-11-20', 'M', 'Av. Libertadores # 4-55, Cúcuta', '3145566778', 'lucas.guerrero@littlehorizons.edu.co', 'Graduado'),
-(31, 'CE', '950123481', 'Andrés Felipe', 'Quintana Bravo', '2010-10-10', 'M', 'Calle 10 # 2E-70, Quinta Oriental, Cúcuta', '3156677889', 'andres.quintana@littlehorizons.edu.co', 'Suspendido'),
-(32, 'Pasaporte', 'P1090123482', 'Juliana', 'Páez Camacho', '2011-12-15', 'F', 'Av. 4E # 13-40, Riviera, Cúcuta', '3167788990', 'juliana.paez@littlehorizons.edu.co', 'Retirado');
+-- Tabla de préstamos de recursos a PROFESORES
+CREATE TABLE prestamos_profesor (
+    id_prestamo INT AUTO_INCREMENT PRIMARY KEY,
+    id_recurso INT NOT NULL,
+    id_profesor INT NOT NULL COMMENT 'Profesor que toma prestado el recurso',
+    fecha_prestamo DATE NOT NULL,
+    fecha_devolucion_esperada DATE NOT NULL,
+    fecha_devolucion_real DATE,
+    estado_prestamo ENUM('Activo', 'Devuelto', 'Vencido') DEFAULT 'Activo',
+    observaciones TEXT,
+    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_recurso) REFERENCES recursos(id_recurso) ON DELETE CASCADE,
+    FOREIGN KEY (id_profesor) REFERENCES profesores(id_profesor) ON DELETE CASCADE,
+    INDEX idx_recurso_estado (id_recurso, estado_prestamo),
+    INDEX idx_profesor (id_profesor),
+    INDEX idx_estado (estado_prestamo),
+    INDEX idx_fecha_devolucion (fecha_devolucion_esperada)
+) ENGINE=InnoDB COMMENT='Registro de préstamos de recursos a profesores';
 
--- -----------------------------------------------------------------------------
--- 2.3 INSERCIÓN DE ACUDIENTES (30 Registros - Mínimo 30)
--- -----------------------------------------------------------------------------
-INSERT INTO `acudientes` (`id_acudiente`, `tipo_documento`, `numero_documento`, `nombres`, `apellidos`, `parentesco`, `telefono`, `email`, `direccion`, `profesion_ocupacion`) VALUES
-(1, 'CC', '1098765401', 'Fernando', 'Gómez Medina', 'Padre', '3151112233', 'fernando.gomez@gmail.com', 'Calle 15 # 4-32, La Playa, Cúcuta', 'Ingeniero Civil'),
-(2, 'CC', '1098765402', 'Claudia Marcela', 'Silva Lozano', 'Madre', '3152223344', 'claudia.silva@hotmail.com', 'Av. 0 # 12-45, Barrio Blanco, Cúcuta', 'Médica Pediatra'),
-(3, 'CC', '1098765403', 'Jorge Andrés', 'Martínez Pardo', 'Padre', '3153334455', 'jorge.martinez@yahoo.com', 'Calle 8 # 19-20, Caobos, Cúcuta', 'Abogado'),
-(4, 'CC', '1098765404', 'Patricia', 'Peña Hurtado', 'Madre', '3154445566', 'patricia.pena@outlook.com', 'Av. Guaimaral # 5E-30, Cúcuta', 'Contadora Pública'),
-(5, 'CC', '1098765405', 'Ricardo', 'Díaz Forero', 'Padre', '3155556677', 'ricardo.diaz@gmail.com', 'Calle 11 # 2E-15, Bellavista, Cúcuta', 'Arquitecto'),
-(6, 'CC', '1098765406', 'Carlos Alberto', 'Restrepo Ortiz', 'Padre', '3156667788', 'carlos.restrepo@empresa.com.co', 'Calle 10 # 3E-44, Quinta Oriental, Cúcuta', 'Empresario'),
-(7, 'CC', '1098765407', 'Andrea', 'Vargas Jaramillo', 'Madre', '3157778899', 'andrea.vargas@gmail.com', 'Av. 4 # 8-12, Centro, Cúcuta', 'Diseñadora de Modas'),
-(8, 'CC', '1098765408', 'Wilson', 'Pérez Cárdenas', 'Padre', '3158889900', 'wilson.perez@hotmail.com', 'Calle 18 # 0-40, La Riviera, Cúcuta', 'Docente Universitario'),
-(9, 'CC', '1098765409', 'Martha Lucía', 'Duque Osorio', 'Madre', '3159990011', 'martha.duque@outlook.com', 'Av. 11E # 5-60, Colsag, Cúcuta', 'Bióloga'),
-(10, 'CC', '1098765410', 'Alberto', 'Castillo Rivera', 'Padre', '3161112233', 'alberto.castillo@gmail.com', 'Calle 2N # 4-18, Prados del Norte, Cúcuta', 'Odontólogo'),
-(11, 'CC', '1098765411', 'Esperanza', 'Mendoza Salcedo', 'Madre', '3162223344', 'esperanza.mendoza@yahoo.es', 'Av. 6 # 14-22, Lleras Restrepo, Cúcuta', 'Economista'),
-(12, 'CC', '1098765412', 'Eduardo', 'Ramírez Ortiz', 'Padre', '3163334455', 'eduardo.ramirez@gmail.com', 'Calle 13 # 1E-80, Ceiba, Cúcuta', 'Comerciante'),
-(13, 'CC', '1098765413', 'Luz Marina', 'Rincón Parra', 'Madre', '3164445566', 'luz.rincon@gmail.com', 'Av. Grancolombia # 8-50, Cúcuta', 'Psicóloga'),
-(14, 'CC', '1098765414', 'Guillermo', 'Pardo Beltrán', 'Padre', '3165556677', 'guillermo.pardo@hotmail.com', 'Calle 7 # 15-30, San Luis, Cúcuta', 'Ingeniero Mecánico'),
-(15, 'CC', '1098765415', 'Nelly', 'Beltrán Castro', 'Madre', '3166667788', 'nelly.beltran@gmail.com', 'Av. Libertadores # 10-05, Cúcuta', 'Administradora de Empresas'),
-(16, 'CC', '1098765416', 'Felipe', 'Rivas Morales', 'Padre', '3167778899', 'felipe.rivas@gmail.com', 'Calle 16 # 3-10, La Playa, Cúcuta', 'Químico Farmacéutico'),
-(17, 'CC', '1098765417', 'Gloria Inés', 'Gil Restrepo', 'Madre', '3168889900', 'gloria.gil@outlook.com', 'Av. 2 # 9-45, Latino, Cúcuta', 'Comunicadora Social'),
-(18, 'CC', '1098765418', 'Hernando', 'Cruz Vega', 'Padre', '3169990011', 'hernando.cruz@yahoo.com', 'Calle 12 # 5E-12, Popular, Cúcuta', 'Médico Cirujano'),
-(19, 'CC', '1098765419', 'Adriana', 'Parra Silva', 'Madre', '3171112233', 'adriana.parra@gmail.com', 'Av. 5 # 16-35, Guaimaral, Cúcuta', 'Enfermera Jefe'),
-(20, 'CC', '1098765420', 'Javier', 'Vega Salcedo', 'Padre', '3172223344', 'javier.vega@hotmail.com', 'Calle 9 # 8-60, Centro, Cúcuta', 'Ingeniero de Sistemas'),
-(21, 'CC', '1098765421', 'Beatriz', 'Quintero Mora', 'Madre', '3173334455', 'beatriz.quintero@gmail.com', 'Av. 3E # 11-18, Quinta Oriental, Cúcuta', 'Veterinaria'),
-(22, 'CC', '1098765422', 'Oscar', 'Caicedo Barreto', 'Padre', '3174445566', 'oscar.caicedo@outlook.com', 'Calle 6 # 20-15, Caobos, Cúcuta', 'Banquero'),
-(23, 'CC', '1098765423', 'Yolanda', 'Villamizar León', 'Madre', '3175556677', 'yolanda.villamizar@gmail.com', 'Av. 0 # 15-50, Barrio Blanco, Cúcuta', 'Docente de Primaria'),
-(24, 'CC', '1098765424', 'Raúl', 'Serrano Peña', 'Padre', '3176667788', 'raul.serrano@gmail.com', 'Calle 14 # 4E-22, La Riviera, Cúcuta', 'Notario'),
-(25, 'CC', '1098765425', 'Carmen', 'Cadena Meza', 'Madre', '3177778899', 'carmen.cadena@yahoo.es', 'Av. 8E # 3-40, Colsag, Cúcuta', 'Nutricionista'),
-(26, 'CC', '1098765426', 'Héctor', 'Roa León', 'Padre', '3178889900', 'hector.roa@hotmail.com', 'Calle 17 # 6-30, San Mateo, Cúcuta', 'Ingeniero Electrónico'),
-(27, 'CC', '1098765427', 'Lucía', 'Prieto Villamizar', 'Madre', '3179990011', 'lucia.prieto@gmail.com', 'Av. 1 # 10-15, Bellavista, Cúcuta', 'Secretaria Ejecutiva'),
-(28, 'CC', '1098765428', 'Gabriel', 'Benítez Mora', 'Padre', '3181112233', 'gabriel.benitez@outlook.com', 'Calle 5 # 18-05, Caobos, Cúcuta', 'Consultor Financiero'),
-(29, 'CE', '850123429', 'Enrique', 'Guerrero Bravo', 'Padre', '3182223344', 'enrique.guerrero@gmail.com', 'Av. Libertadores # 4-55, Cúcuta', 'Piloto Comercial'),
-(30, 'Pasaporte', 'P1098765430', 'Elena', 'Camacho Vivas', 'Madre', '3183334455', 'elena.camacho@gmail.com', 'Av. 4E # 13-40, Riviera, Cúcuta', 'Traductora Oficial');
+-- ============================================
+-- DATOS INICIALES BÁSICOS
+-- ============================================
 
--- -----------------------------------------------------------------------------
--- 2.4 INSERCIÓN DE RELACIÓN ESTUDIANTE - ACUDIENTE (33 Registros - Hermanos soportados)
--- -----------------------------------------------------------------------------
-INSERT INTO `estudiante_acudiente` (`id_estudiante`, `id_acudiente`, `es_principal`, `relacion`) VALUES
-(1, 1, TRUE, 'Padre'),
-(2, 2, TRUE, 'Madre'),
-(3, 3, TRUE, 'Padre'),
-(4, 4, TRUE, 'Madre'),
-(5, 5, TRUE, 'Padre'),
-(6, 6, TRUE, 'Padre'),
-(7, 6, TRUE, 'Padre'),
-(8, 7, TRUE, 'Madre'),
-(9, 8, TRUE, 'Padre'),
-(10, 9, TRUE, 'Madre'),
-(11, 10, TRUE, 'Padre'),
-(12, 11, TRUE, 'Madre'),
-(13, 12, TRUE, 'Padre'),
-(14, 13, TRUE, 'Madre'),
-(15, 14, TRUE, 'Padre'),
-(16, 15, TRUE, 'Madre'),
-(17, 16, TRUE, 'Padre'),
-(18, 17, TRUE, 'Madre'),
-(19, 18, TRUE, 'Padre'),
-(20, 19, TRUE, 'Madre'),
-(21, 20, TRUE, 'Padre'),
-(22, 21, TRUE, 'Madre'),
-(23, 22, TRUE, 'Padre'),
-(24, 23, TRUE, 'Madre'),
-(25, 24, TRUE, 'Padre'),
-(26, 25, TRUE, 'Madre'),
-(27, 26, TRUE, 'Padre'),
-(28, 27, TRUE, 'Madre'),
-(29, 28, TRUE, 'Padre'),
-(30, 29, TRUE, 'Padre'),
-(31, 30, TRUE, 'Madre'),
-(32, 30, TRUE, 'Madre'),
-(1, 2, FALSE, 'Madre');
+-- Insertar grados académicos
+INSERT INTO grados (nombre_grado, nivel_numerico) VALUES
+('Preescolar', 0),
+('Primero', 1),
+('Segundo', 2),
+('Tercero', 3),
+('Cuarto', 4),
+('Quinto', 5),
+('Sexto', 6),
+('Séptimo', 7),
+('Octavo', 8),
+('Noveno', 9),
+('Décimo', 10),
+('Once', 11);
 
--- -----------------------------------------------------------------------------
--- 2.5 INSERCIÓN DE MATRÍCULAS (32 Registros - Año Académico 2026)
--- -----------------------------------------------------------------------------
-INSERT INTO `matriculas` (`id_matricula`, `id_estudiante`, `id_grado`, `año_academico`, `fecha_matricula`, `estado_matricula`, `costo_matricula`) VALUES
-(1, 1, 9, 2026, '2026-01-15', 'Matriculado', 1200000.00),
-(2, 2, 8, 2026, '2026-01-16', 'Matriculado', 1200000.00),
-(3, 3, 10, 2026, '2026-01-15', 'Matriculado', 1350000.00),
-(4, 4, 7, 2026, '2026-01-18', 'Matriculado', 1150000.00),
-(5, 5, 11, 2026, '2026-01-14', 'Matriculado', 1450000.00),
-(6, 6, 9, 2026, '2026-01-15', 'Matriculado', 1200000.00),
-(7, 7, 6, 2026, '2026-01-15', 'Matriculado', 1100000.00),
-(8, 8, 8, 2026, '2026-01-17', 'Matriculado', 1200000.00),
-(9, 9, 7, 2026, '2026-01-19', 'Matriculado', 1150000.00),
-(10, 10, 10, 2026, '2026-01-15', 'Matriculado', 1350000.00),
-(11, 11, 9, 2026, '2026-01-18', 'Matriculado', 1200000.00),
-(12, 12, 6, 2026, '2026-01-20', 'Matriculado', 1100000.00),
-(13, 13, 11, 2026, '2026-01-14', 'Matriculado', 1450000.00),
-(14, 14, 8, 2026, '2026-01-16', 'Matriculado', 1200000.00),
-(15, 15, 7, 2026, '2026-01-19', 'Matriculado', 1150000.00),
-(16, 16, 9, 2026, '2026-01-15', 'Matriculado', 1200000.00),
-(17, 17, 10, 2026, '2026-01-16', 'Matriculado', 1350000.00),
-(18, 18, 6, 2026, '2026-01-20', 'Matriculado', 1100000.00),
-(19, 19, 11, 2026, '2026-01-14', 'Matriculado', 1450000.00),
-(20, 20, 8, 2026, '2026-01-17', 'Matriculado', 1200000.00),
-(21, 21, 7, 2026, '2026-01-19', 'Matriculado', 1150000.00),
-(22, 22, 9, 2026, '2026-01-15', 'Matriculado', 1200000.00),
-(23, 23, 10, 2026, '2026-01-16', 'Matriculado', 1350000.00),
-(24, 24, 6, 2026, '2026-01-20', 'Matriculado', 1100000.00),
-(25, 25, 11, 2026, '2026-01-14', 'Matriculado', 1450000.00),
-(26, 26, 8, 2026, '2026-01-17', 'Matriculado', 1200000.00),
-(27, 27, 7, 2026, '2026-01-19', 'Matriculado', 1150000.00),
-(28, 28, 9, 2026, '2026-01-15', 'Matriculado', 1200000.00),
-(29, 29, 10, 2026, '2026-01-16', 'Matriculado', 1350000.00),
-(30, 30, 12, 2026, '2025-01-10', 'Promovido', 1500000.00),
-(31, 31, 9, 2026, '2026-01-18', 'Matriculado', 1200000.00),
-(32, 32, 8, 2026, '2026-01-17', 'Retirado', 1200000.00);
+-- Insertar categorías de recursos
+INSERT INTO categorias_recurso (nombre_categoria, descripcion) VALUES
+('Libro', 'Libros de la biblioteca escolar'),
+('Equipo de Laboratorio', 'Equipos científicos y de laboratorio (microscopios, balanzas, etc.)'),
+('Equipo Deportivo', 'Equipos y materiales deportivos (balones, conos, etc.)'),
+('Dispositivo Tecnológico', 'Tablets, calculadoras científicas, computadores portátiles'),
+('Material Didáctico', 'Materiales educativos diversos (mapas, modelos, etc.)');
 
--- -----------------------------------------------------------------------------
--- 2.6 INSERCIÓN DE MATERIAS (31 Registros - Mínimo 30)
--- -----------------------------------------------------------------------------
-INSERT INTO `materias` (`id_materia`, `codigo_materia`, `nombre_materia`, `descripcion`, `intensidad_horaria`, `area`) VALUES
-(1, 'MAT-101', 'Matemáticas Básicas', 'Fundamentos aritméticos y algebraicos básicos', 5, 'Matemáticas'),
-(2, 'MAT-201', 'Álgebra y Funciones', 'Ecuaciones, polinomios y funciones lineales y cuadráticas', 5, 'Matemáticas'),
-(3, 'MAT-301', 'Geometría y Trigonometría', 'Teoremas geométricos, ángulos y funciones trigonométricas', 4, 'Matemáticas'),
-(4, 'MAT-401', 'Cálculo Diferencial e Integral', 'Límites, derivadas, integrales y optimización', 5, 'Matemáticas'),
-(5, 'MAT-501', 'Estadística y Probabilidad', 'Distribuciones, muestreo, regresión y probabilidad clásica', 3, 'Matemáticas'),
-(6, 'LEN-101', 'Lengua Castellana I', 'Comprensión lectora, ortografía y gramática estructural', 4, 'Humanidades y Lenguas'),
-(7, 'LEN-201', 'Lengua Castellana II', 'Análisis sintáctico, tipologías textuales y ensayo argumentativo', 4, 'Humanidades y Lenguas'),
-(8, 'LEN-301', 'Literatura Universal y Colombiana', 'Corrientes literarias, realismo mágico e interpretación crítica', 4, 'Humanidades y Lenguas'),
-(9, 'ING-101', 'Inglés Básico A1', 'Gramática básica, vocabulario esencial y conversación simple', 5, 'Humanidades y Lenguas'),
-(10, 'ING-201', 'Inglés Intermedio B1', 'Estructuras intermedias, comprensión auditiva y lectura fluida', 5, 'Humanidades y Lenguas'),
-(11, 'ING-301', 'Inglés Avanzado B2', 'Debate académico, redacción de ensayos y certificaciones Cambridge', 5, 'Humanidades y Lenguas'),
-(12, 'FRA-101', 'Francés Inicial A1', 'Fonética francesa, vocabulario y expresiones cotidianas', 3, 'Humanidades y Lenguas'),
-(13, 'CIE-101', 'Ciencias Naturales y Entorno', 'Sistemas biológicos, ecosistemas y recursos renovables', 4, 'Ciencias Naturales'),
-(14, 'CIE-201', 'Biología Celular y Genética', 'Estructura celular, ADN, herencia mendeliana y biotecnología', 4, 'Ciencias Naturales'),
-(15, 'QUI-101', 'Química General e Inorgánica', 'Tabla periódica, enlaces químicos, nomenclatura y estequiometría', 4, 'Ciencias Naturales'),
-(16, 'QUI-201', 'Química Orgánica y Bioquímica', 'Hidrocarburos, grupos funcionales y biomoléculas esenciales', 4, 'Ciencias Naturales'),
-(17, 'FIS-101', 'Física Mecánica', 'Cinemática, leyes de Newton, trabajo, energía y dinámica', 4, 'Ciencias Naturales'),
-(18, 'FIS-201', 'Física Eléctrica y Ondas', 'Electromagnetismo, termodinámica, movimiento armónico y óptica', 4, 'Ciencias Naturales'),
-(19, 'SOC-101', 'Historia de Colombia', 'Época precolombina, colonia, independencia y siglo XX en Colombia', 3, 'Ciencias Sociales'),
-(20, 'SOC-201', 'Geografía Universal y de Colombia', 'Geografía física, geopolítica, regiones naturales y demografía', 3, 'Ciencias Sociales'),
-(21, 'SOC-301', 'Ciencias Políticas y Económicas', 'Modelos económicos, Constitución Política, derechos humanos y Estado', 3, 'Ciencias Sociales'),
-(22, 'FIL-101', 'Filosofía y Pensamiento Crítico', 'Historia de la filosofía, epistemología, lógica y ética contemporánea', 3, 'Ética y Filosofía'),
-(23, 'ETI-101', 'Ética y Convivencia Ciudadana', 'Valores cívicos, resolución pacífica de conflictos y ciudadanía global', 2, 'Ética y Filosofía'),
-(24, 'TEC-101', 'Tecnología e Innovación', 'Evolución técnica, mecanismos simples, energías limpias y prototipado', 3, 'Tecnología e Informática'),
-(25, 'INF-101', 'Fundamentos de Algoritmia y Python', 'Lógica secuencial, estructuras de control, funciones y programación', 4, 'Tecnología e Informática'),
-(26, 'INF-201', 'Bases de Datos y Desarrollo Web', 'Modelado relacional, consultas SQL, maquetación HTML/CSS y Javascript', 4, 'Tecnología e Informática'),
-(27, 'ART-101', 'Artes Plásticas y Visuales', 'Teoría del color, técnicas de dibujo, escultura y pintura contemporánea', 2, 'Educación Artística'),
-(28, 'MUS-101', 'Música y Apreciación Sonora', 'Gramática musical, solfeo, coro, ensamble de percusión y flauta', 2, 'Educación Artística'),
-(29, 'EDF-101', 'Educación Física y Acondicionamiento', 'Desarrollo motriz, atletismo, voleibol, fútbol y hábitos saludables', 2, 'Educación Física'),
-(30, 'EMP-101', 'Emprendimiento y Liderazgo Juvenil', 'Plan de negocios escolar, finanzas personales, pitch y marketing básico', 2, 'Ciencias Sociales'),
-(31, 'ROB-101', 'Robótica Educativa y Sistemas Mecatrónicos', 'Microcontroladores Arduino, servomotores, sensores y automatismos', 3, 'Tecnología e Informática');
+-- Insertar conceptos de pago comunes
+INSERT INTO conceptos_pago (codigo_concepto, nombre_concepto, descripcion, monto_base, es_recurrente) VALUES
+('MAT', 'Matrícula', 'Pago anual de matrícula', 500000.00, FALSE),
+('PENSION', 'Pensión Mensual', 'Pago mensual de pensión', 350000.00, TRUE),
+('UNIFORME', 'Uniforme', 'Uniforme escolar completo', 250000.00, FALSE),
+('TRANSPORTE', 'Transporte Escolar', 'Servicio de transporte mensual', 150000.00, TRUE),
+('ALIMENTACION', 'Servicio de Alimentación', 'Almuerzo escolar mensual', 120000.00, TRUE),
+('ACTIVIDAD', 'Actividad Especial', 'Salida pedagógica o actividad especial', 50000.00, FALSE),
+('CERTIFICADO', 'Certificado', 'Certificado de estudio o constancia', 15000.00, FALSE);
 
--- -----------------------------------------------------------------------------
--- 2.7 INSERCIÓN DE PROFESORES (31 Registros - Mínimo 30)
--- -----------------------------------------------------------------------------
-INSERT INTO `profesores` (`id_profesor`, `tipo_documento`, `numero_documento`, `nombres`, `apellidos`, `especialidad`, `email`, `telefono`, `fecha_contratacion`, `estado`) VALUES
-(1, 'CC', '1091234501', 'Carlos Alberto', 'Moreno Rivas', 'Licenciado en Matemáticas y Física', 'carlos.moreno@littlehorizons.edu.co', '3153010001', '2019-01-10', 'Activo'),
-(2, 'CC', '1091234502', 'María Fernanda', 'Gómez Pérez', 'Licenciada en Humanidades y Lengua Castellana', 'maria.gomez@littlehorizons.edu.co', '3153010002', '2018-07-15', 'Activo'),
-(3, 'CC', '1091234503', 'Hernando José', 'Soto Marín', 'Magíster en Ciencias Físicas', 'hernando.soto@littlehorizons.edu.co', '3153010003', '2020-01-12', 'Activo'),
-(4, 'CC', '1091234504', 'Diana Marcela', 'Cuéllar Cruz', 'Licenciada en Química Orgánica', 'diana.cuellar@littlehorizons.edu.co', '3153010004', '2017-08-01', 'Activo'),
-(5, 'CC', '1091234505', 'Andrés Felipe', 'Vargas Lozano', 'Biólogo y Especialista en Pedagogía', 'andres.vargas@littlehorizons.edu.co', '3153010005', '2021-01-20', 'Activo'),
-(6, 'CC', '1091234506', 'Sandra Milena', 'Torres Ortiz', 'Licenciada en Ciencias Sociales e Historia', 'sandra.torres@littlehorizons.edu.co', '3153010006', '2016-02-14', 'Activo'),
-(7, 'CC', '1091234507', 'Juan Pablo', 'Castañeda Vega', 'Filósofo y Magíster en Ética Aplicada', 'juan.castaneda@littlehorizons.edu.co', '3153010007', '2019-08-10', 'Activo'),
-(8, 'CC', '1091234508', 'Clara Inés', 'Mendoza Salcedo', 'Licenciada en Idiomas Modernos (Inglés/Español)', 'clara.mendoza@littlehorizons.edu.co', '3153010008', '2018-01-15', 'Activo'),
-(9, 'CC', '1091234509', 'Diego Armando', 'Navarro Peña', 'Licenciado en Lenguas Extranjeras (Francés/Inglés)', 'diego.navarro@littlehorizons.edu.co', '3153010009', '2020-02-01', 'Activo'),
-(10, 'CC', '1091234510', 'Patricia Elena', 'Reyes Morales', 'Maestra en Artes Plásticas y Visuales', 'patricia.reyes@littlehorizons.edu.co', '3153010010', '2015-09-01', 'Activo'),
-(11, 'CC', '1091234511', 'Jorge Enrique', 'Suárez Rojas', 'Músico Profesional y Director Coral', 'jorge.suarez@littlehorizons.edu.co', '3153010011', '2021-07-15', 'Activo'),
-(12, 'CC', '1091234512', 'Luis Eduardo', 'Barbosa Cárdenas', 'Licenciado en Educación Física y Deporte', 'luis.barbosa@littlehorizons.edu.co', '3153010012', '2017-01-16', 'Activo'),
-(13, 'CC', '1091234513', 'Mónica Viviana', 'Gil Restrepo', 'Ingeniera de Sistemas y Especialista en TIC', 'monica.gil@littlehorizons.edu.co', '3153010013', '2019-01-22', 'Activo'),
-(14, 'CC', '1091234514', 'Álvaro Javier', 'Caicedo Quintero', 'Ingeniero Mecatrónico y Docente Maker', 'alvaro.caicedo@littlehorizons.edu.co', '3153010014', '2022-01-10', 'Activo'),
-(15, 'CC', '1091234515', 'Beatriz Eugenia', 'Ospina Ruiz', 'Licenciada en Geografía y Medio Ambiente', 'beatriz.ospina@littlehorizons.edu.co', '3153010015', '2018-03-01', 'Activo'),
-(16, 'CC', '1091234516', 'Camilo Andrés', 'Parra Silva', 'Economista y Docente de Emprendimiento', 'camilo.parra@littlehorizons.edu.co', '3153010016', '2020-08-15', 'Activo'),
-(17, 'CC', '1091234517', 'Gloria Stella', 'Beltrán Castro', 'Maestra en Arte Dramático y Teatro', 'gloria.beltran@littlehorizons.edu.co', '3153010017', '2016-10-01', 'Activo'),
-(18, 'CC', '1091234518', 'Roberto Carlos', 'Duque Salazar', 'Ingeniero Electrónico y Robótica', 'roberto.duque@littlehorizons.edu.co', '3153010018', '2021-02-01', 'Activo'),
-(19, 'CC', '1091234519', 'Liliana Rocío', 'Serrano Meza', 'Licenciada en Matemáticas y Estadística', 'liliana.serrano@littlehorizons.edu.co', '3153010019', '2019-07-01', 'Activo'),
-(20, 'CC', '1091234520', 'Fernando Alonso', 'Prieto Villamizar', 'Arquitecto y Dibujante Técnico', 'fernando.prieto@littlehorizons.edu.co', '3153010020', '2017-02-20', 'Activo'),
-(21, 'CC', '1091234521', 'Esperanza', 'Rincón Pardo', 'Química Farmacéutica y Bioquímica', 'esperanza.rincon@littlehorizons.edu.co', '3153010021', '2018-09-10', 'Activo'),
-(22, 'CC', '1091234522', 'Gabriel Antonio', 'Roa Carvajal', 'Bailarín Profesional y Licenciado en Danza', 'gabriel.roa@littlehorizons.edu.co', '3153010022', '2022-02-15', 'Activo'),
-(23, 'CC', '1091234523', 'Carolina', 'Paz Hurtado', 'Politóloga y Docente de Democracia', 'carolina.paz@littlehorizons.edu.co', '3153010023', '2020-01-18', 'Activo'),
-(24, 'CC', '1091234524', 'Mauricio', 'León Monroy', 'Físico y Astrónomo Aficionado', 'mauricio.leon@littlehorizons.edu.co', '3153010024', '2021-08-01', 'Activo'),
-(25, 'CC', '1091234525', 'Natalia Andrea', 'Benítez Mora', 'Licenciada en Literatura y Escritura Creativa', 'natalia.benitez@littlehorizons.edu.co', '3153010025', '2019-03-12', 'Activo'),
-(26, 'CC', '1091234526', 'Víctor Hugo', 'Guerrero Polo', 'Entrenador Deportivo y Salvavidas Certificado', 'victor.guerrero@littlehorizons.edu.co', '3153010026', '2017-05-02', 'Activo'),
-(27, 'CC', '1091234527', 'Paola Cristina', 'Rojas Bravo', 'Gran Maestra Nacional de Ajedrez y Matemática', 'paola.rojas@littlehorizons.edu.co', '3153010027', '2020-09-01', 'Activo'),
-(28, 'CC', '1091234528', 'Germán Darío', 'Páez Camacho', 'Periodista y Redactor de Contenidos', 'german.paez@littlehorizons.edu.co', '3153010028', '2018-11-15', 'Activo'),
-(29, 'CC', '1091234529', 'Sonia Mercedes', 'Cárdenas Vivas', 'Diseñadora Gráfica y Fotógrafa', 'sonia.cardenas@littlehorizons.edu.co', '3153010029', '2021-03-01', 'Activo'),
-(30, 'CE', '850123530', 'José Ignacio', 'Bustamante Vega', 'Físico Experimental', 'jose.bustamante@littlehorizons.edu.co', '3153010030', '2022-08-10', 'Activo'),
-(31, 'Pasaporte', 'P1091234531', 'Adriana Marcela', 'Méndez Forero', 'Filóloga Francófona Internacional', 'adriana.mendez@littlehorizons.edu.co', '3153010031', '2023-01-15', 'Activo');
 
--- -----------------------------------------------------------------------------
--- 2.8 INSERCIÓN DE ASIGNACIONES DE PROFESORES (35 Registros - Año 2026)
--- -----------------------------------------------------------------------------
-INSERT INTO `asignaciones_profesor` (`id_asignacion`, `id_profesor`, `id_materia`, `id_grado`, `seccion`, `año_academico`, `dias_horario`, `hora_inicio`, `hora_fin`) VALUES
-(1, 1, 1, 7, 'A', 2026, 'Lunes, Miercoles', '07:00:00', '08:30:00'),
-(2, 1, 2, 8, 'A', 2026, 'Martes, Jueves', '07:00:00', '08:30:00'),
-(3, 1, 2, 9, 'A', 2026, 'Lunes, Miercoles', '08:30:00', '10:00:00'),
-(4, 1, 3, 10, 'A', 2026, 'Martes, Jueves', '08:30:00', '10:00:00'),
-(5, 1, 4, 11, 'A', 2026, 'Viernes', '07:00:00', '09:00:00'),
-(6, 2, 6, 7, 'A', 2026, 'Lunes, Miercoles', '07:00:00', '08:30:00'),
-(7, 2, 7, 8, 'A', 2026, 'Martes, Jueves', '07:00:00', '08:30:00'),
-(8, 2, 7, 9, 'A', 2026, 'Lunes, Miercoles', '10:30:00', '12:00:00'),
-(9, 2, 8, 10, 'A', 2026, 'Martes, Jueves', '10:30:00', '12:00:00'),
-(10, 2, 8, 11, 'A', 2026, 'Viernes', '09:00:00', '11:00:00'),
-(11, 3, 17, 10, 'A', 2026, 'Lunes, Miercoles', '08:30:00', '10:00:00'),
-(12, 3, 18, 11, 'A', 2026, 'Martes, Jueves', '08:30:00', '10:00:00'),
-(13, 4, 15, 10, 'A', 2026, 'Lunes, Miercoles', '10:30:00', '12:00:00'),
-(14, 4, 16, 11, 'A', 2026, 'Martes, Jueves', '10:30:00', '12:00:00'),
-(15, 5, 13, 7, 'A', 2026, 'Lunes, Miercoles', '08:30:00', '10:00:00'),
-(16, 5, 14, 9, 'A', 2026, 'Martes, Jueves', '08:30:00', '10:00:00'),
-(17, 6, 19, 8, 'A', 2026, 'Lunes, Miercoles', '07:00:00', '08:30:00'),
-(18, 6, 20, 9, 'A', 2026, 'Martes, Jueves', '07:00:00', '08:30:00'),
-(19, 6, 21, 11, 'A', 2026, 'Viernes', '07:00:00', '09:00:00'),
-(20, 7, 22, 10, 'A', 2026, 'Lunes, Miercoles', '13:00:00', '14:30:00'),
-(21, 7, 23, 8, 'A', 2026, 'Martes, Jueves', '13:00:00', '14:30:00'),
-(22, 8, 9, 6, 'A', 2026, 'Lunes, Miercoles', '07:00:00', '08:30:00'),
-(23, 8, 10, 8, 'A', 2026, 'Martes, Jueves', '07:00:00', '08:30:00'),
-(24, 8, 11, 10, 'A', 2026, 'Viernes', '10:30:00', '12:00:00'),
-(25, 9, 12, 9, 'A', 2026, 'Viernes', '07:00:00', '09:00:00'),
-(26, 10, 27, 7, 'A', 2026, 'Martes', '13:00:00', '14:30:00'),
-(27, 11, 28, 8, 'A', 2026, 'Jueves', '13:00:00', '14:30:00'),
-(28, 12, 29, 9, 'A', 2026, 'Viernes', '13:00:00', '14:30:00'),
-(29, 13, 24, 7, 'A', 2026, 'Lunes', '10:30:00', '12:00:00'),
-(30, 13, 25, 9, 'A', 2026, 'Miercoles', '10:30:00', '12:00:00'),
-(31, 13, 26, 11, 'A', 2026, 'Viernes', '10:30:00', '12:00:00'),
-(32, 14, 31, 8, 'A', 2026, 'Lunes', '13:00:00', '14:30:00'),
-(33, 16, 30, 10, 'A', 2026, 'Miercoles', '13:00:00', '14:30:00'),
-(34, 19, 5, 11, 'A', 2026, 'Martes, Jueves', '10:30:00', '12:00:00'),
-(35, 27, 31, 9, 'A', 2026, 'Viernes', '08:30:00', '10:00:00');
+-- ============================================
+-- SECCIÓN 2: DML - DATOS DE PRUEBA COHERENTES (>= 30 POR TABLA PRINCIPAL)
+-- ============================================
 
--- -----------------------------------------------------------------------------
--- 2.9 INSERCIÓN DE INSCRIPCIONES A MATERIAS (40 Registros - Año 2026)
--- -----------------------------------------------------------------------------
-INSERT INTO `inscripciones_materia` (`id_inscripcion`, `id_estudiante`, `id_asignacion`, `año_academico`, `estado_inscripcion`) VALUES
-(1, 1, 3, 2026, 'Cursando'),
-(2, 1, 8, 2026, 'Cursando'),
-(3, 1, 16, 2026, 'Cursando'),
-(4, 1, 18, 2026, 'Cursando'),
-(5, 1, 30, 2026, 'Cursando'),
-(6, 2, 2, 2026, 'Cursando'),
-(7, 2, 7, 2026, 'Cursando'),
-(8, 2, 17, 2026, 'Cursando'),
-(9, 2, 23, 2026, 'Cursando'),
-(10, 3, 4, 2026, 'Cursando'),
-(11, 3, 9, 2026, 'Cursando'),
-(12, 3, 11, 2026, 'Cursando'),
-(13, 3, 13, 2026, 'Cursando'),
-(14, 4, 1, 2026, 'Cursando'),
-(15, 4, 6, 2026, 'Cursando'),
-(16, 4, 15, 2026, 'Cursando'),
-(17, 4, 26, 2026, 'Cursando'),
-(18, 5, 5, 2026, 'Cursando'),
-(19, 5, 10, 2026, 'Cursando'),
-(20, 5, 12, 2026, 'Cursando'),
-(21, 5, 14, 2026, 'Cursando'),
-(22, 5, 31, 2026, 'Cursando'),
-(23, 6, 3, 2026, 'Cursando'),
-(24, 6, 8, 2026, 'Cursando'),
-(25, 6, 16, 2026, 'Cursando'),
-(26, 6, 30, 2026, 'Cursando'),
-(27, 7, 22, 2026, 'Cursando'),
-(28, 8, 2, 2026, 'Cursando'),
-(29, 8, 7, 2026, 'Cursando'),
-(30, 9, 1, 2026, 'Cursando'),
-(31, 9, 6, 2026, 'Cursando'),
-(32, 10, 4, 2026, 'Cursando'),
-(33, 10, 11, 2026, 'Cursando'),
-(34, 11, 3, 2026, 'Cursando'),
-(35, 11, 8, 2026, 'Cursando'),
-(36, 13, 5, 2026, 'Cursando'),
-(37, 13, 12, 2026, 'Cursando'),
-(38, 16, 3, 2026, 'Cursando'),
-(39, 17, 4, 2026, 'Cursando'),
-(40, 19, 5, 2026, 'Cursando');
+-- 1. Estudiantes (32 registros)
+INSERT INTO estudiantes (tipo_documento, numero_documento, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, fecha_nacimiento, genero, direccion, telefono, correo_electronico, tipo_sangre, alergias, condiciones_medicas, fecha_ingreso, estado) VALUES
+('TI', '1034567801', 'Mateo', 'Andrés', 'Rodríguez', 'Sánchez', '2010-01-03', 'M', 'Calle 11 # 21-11, Bogotá', '3104012345', 'est.mateo.rodríguez1@littlehorizons.edu.co', 'A+', NULL, NULL, '2022-01-20', 'Activo'),
+('TI', '1034567802', 'Valentina', 'David', 'Rodríguez', 'Sánchez', '2011-02-05', 'F', 'Calle 12 # 22-12, Bogotá', '3104024690', 'est.valentina.rodríguez2@littlehorizons.edu.co', 'B+', NULL, NULL, '2023-01-20', 'Activo'),
+('TI', '1034567803', 'Santiago', 'María', 'Martínez', 'Torres', '2012-03-07', 'M', 'Calle 13 # 23-13, Bogotá', '3104037035', 'est.santiago.martínez3@littlehorizons.edu.co', 'O-', NULL, NULL, '2024-01-20', 'Activo'),
+('TI', '1034567804', 'Isabella', 'Sofía', 'Martínez', 'Torres', '2013-04-09', 'F', 'Calle 14 # 24-14, Bogotá', '3104049380', 'est.isabella.martínez4@littlehorizons.edu.co', 'AB+', NULL, NULL, '2025-01-20', 'Activo'),
+('TI', '1034567805', 'Sebastián', 'Lucía', 'González', 'Rivera', '2014-05-11', 'M', 'Calle 15 # 25-15, Bogotá', '3104061725', 'est.sebastian.gonzalez5@littlehorizons.edu.co', 'A-', NULL, NULL, '2021-01-20', 'Activo'),
+('TI', '1034567806', 'Lucía', NULL, 'González', 'Rivera', '2015-06-13', 'F', 'Calle 16 # 26-16, Bogotá', '3104074070', 'est.lucia.gonzalez6@littlehorizons.edu.co', 'O+', NULL, NULL, '2022-01-20', 'Activo'),
+('TI', '1034567807', 'Alejandro', 'Antonio', 'Pérez', 'Vargas', '2016-07-15', 'M', 'Calle 17 # 27-17, Bogotá', '3104086415', 'est.alejandro.pérez7@littlehorizons.edu.co', 'A+', 'Maní', NULL, '2023-01-20', 'Activo'),
+('TI', '1034567808', 'Camila', 'Alejandra', 'Sánchez', 'Castro', '2017-08-17', 'F', 'Calle 18 # 28-18, Bogotá', '3104098760', 'est.camila.sanchez8@littlehorizons.edu.co', 'B+', NULL, NULL, '2024-01-20', 'Activo'),
+('TI', '1034567809', 'Daniel', NULL, 'Ramírez', 'Morales', '2018-09-19', 'M', 'Calle 19 # 29-19, Bogotá', '3104111105', 'est.daniel.ramírez9@littlehorizons.edu.co', 'O-', NULL, 'Asma leve', '2025-01-20', 'Activo'),
+('TI', '1034567810', 'Mariana', 'Carlos', 'Torres', 'Rojas', '2009-10-21', 'F', 'Calle 20 # 30-20, Bogotá', '3104123450', 'est.mariana.torres10@littlehorizons.edu.co', 'AB+', NULL, NULL, '2021-01-20', 'Activo'),
+('TI', '1034567811', 'Nicolás', 'Elena', 'Flores', 'Ortiz', '2010-11-23', 'M', 'Calle 21 # 31-21, Bogotá', '3104135795', 'est.nicolas.flores11@littlehorizons.edu.co', 'A-', 'Polen', NULL, '2022-01-20', 'Activo'),
+('TI', '1034567812', 'Gabriela', NULL, 'Rivera', 'Silva', '2011-12-25', 'F', 'Calle 22 # 32-22, Bogotá', '3104148140', 'est.gabriela.rivera12@littlehorizons.edu.co', 'O+', NULL, NULL, '2023-01-20', 'Activo'),
+('TI', '1034567813', 'Samuel', 'Esteban', 'Díaz', 'Mendoza', '2012-01-27', 'M', 'Calle 23 # 33-23, Bogotá', '3104160485', 'est.samuel.díaz13@littlehorizons.edu.co', 'A+', NULL, NULL, '2024-01-20', 'Activo'),
+('TI', '1034567814', 'Sara', 'Isabel', 'Vargas', 'Reyes', '2013-02-02', 'F', 'Calle 24 # 34-24, Bogotá', '3104172830', 'est.sara.vargas14@littlehorizons.edu.co', 'B+', 'Maní', NULL, '2025-01-20', 'Activo'),
+('TI', '1034567815', 'Tomás', NULL, 'Castro', 'Jiménez', '2014-03-04', 'M', 'Calle 25 # 35-25, Bogotá', '3104185175', 'est.tomas.castro15@littlehorizons.edu.co', 'O-', NULL, NULL, '2021-01-20', 'Activo'),
+('TI', '1034567816', 'Valeria', 'José', 'Morales', 'Moreno', '2015-04-06', 'F', 'Calle 26 # 36-26, Bogotá', '3104197520', 'est.valeria.morales16@littlehorizons.edu.co', 'AB+', NULL, NULL, '2022-01-20', 'Activo'),
+('TI', '1034567817', 'Lucas', 'Andrés', 'Rojas', 'Álvarez', '2016-05-08', 'M', 'Calle 27 # 37-27, Bogotá', '3104209865', 'est.lucas.rojas17@littlehorizons.edu.co', 'A-', NULL, NULL, '2023-01-20', 'Activo'),
+('TI', '1034567818', 'Daniela', 'David', 'Ortiz', 'Romero', '2017-06-10', 'F', 'Calle 28 # 38-28, Bogotá', '3104222210', 'est.daniela.ortiz18@littlehorizons.edu.co', 'O+', NULL, 'Asma leve', '2024-01-20', 'Activo'),
+('TI', '1034567819', 'Emiliano', 'María', 'Silva', 'Ruiz', '2018-07-12', 'M', 'Calle 29 # 39-29, Bogotá', '3104234555', 'est.emiliano.silva19@littlehorizons.edu.co', 'A+', NULL, NULL, '2025-01-20', 'Activo'),
+('TI', '1034567820', 'Paula', 'Sofía', 'Mendoza', 'Muñoz', '2009-08-14', 'F', 'Calle 30 # 40-30, Bogotá', '3104246900', 'est.paula.mendoza20@littlehorizons.edu.co', 'B+', NULL, NULL, '2021-01-20', 'Activo'),
+('TI', '1034567821', 'Gabriel', 'Lucía', 'Reyes', 'Guerrero', '2010-09-16', 'M', 'Calle 31 # 41-31, Bogotá', '3104259245', 'est.gabriel.reyes21@littlehorizons.edu.co', 'O-', 'Maní', NULL, '2022-01-20', 'Activo'),
+('TI', '1034567822', 'Victoria', NULL, 'Jiménez', 'Cárdenas', '2011-10-18', 'F', 'Calle 32 # 42-32, Bogotá', '3104271590', 'est.victoria.jiménez22@littlehorizons.edu.co', 'AB+', 'Polen', NULL, '2023-01-20', 'Activo'),
+('TI', '1034567823', 'Martín', 'Antonio', 'Moreno', 'Navarro', '2012-11-20', 'M', 'Calle 33 # 43-33, Bogotá', '3104283935', 'est.martin.moreno23@littlehorizons.edu.co', 'A-', NULL, NULL, '2024-01-20', 'Activo'),
+('TI', '1034567824', 'Natalia', 'Alejandra', 'Álvarez', 'Pardo', '2013-12-22', 'F', 'Calle 34 # 44-34, Bogotá', '3104296280', 'est.natalia.alvarez24@littlehorizons.edu.co', 'O+', NULL, NULL, '2025-01-20', 'Activo'),
+('TI', '1034567825', 'David', NULL, 'Romero', 'Salazar', '2014-01-24', 'M', 'Calle 35 # 45-35, Bogotá', '3104308625', 'est.david.romero25@littlehorizons.edu.co', 'A+', NULL, NULL, '2021-01-20', 'Activo'),
+('TI', '1034567826', 'Laura', 'Carlos', 'Ruiz', 'Rodríguez', '2015-02-26', 'F', 'Calle 36 # 46-36, Bogotá', '3104320970', 'est.laura.ruiz26@littlehorizons.edu.co', 'B+', NULL, NULL, '2022-01-20', 'Activo'),
+('TI', '1034567827', 'Juan', 'Elena', 'Muñoz', 'Gómez', '2016-03-01', 'M', 'Calle 37 # 47-37, Bogotá', '3104333315', 'est.juan.muñoz27@littlehorizons.edu.co', 'O-', NULL, 'Asma leve', '2023-01-20', 'Activo'),
+('CC', '1034567828', 'Andrea', NULL, 'Guerrero', 'Martínez', '2017-04-03', 'F', 'Calle 38 # 48-38, Bogotá', '3104345660', 'est.andrea.guerrero28@littlehorizons.edu.co', 'AB+', 'Maní', NULL, '2024-01-20', 'Activo'),
+('CC', '1034567829', 'Andrés', 'Esteban', 'Cárdenas', 'López', '2018-05-05', 'M', 'Calle 39 # 49-39, Bogotá', '3104358005', 'est.andres.cardenas29@littlehorizons.edu.co', 'A-', NULL, NULL, '2025-01-20', 'Activo'),
+('CC', '1034567830', 'Juliana', 'Isabel', 'Navarro', 'González', '2009-06-07', 'F', 'Calle 40 # 50-40, Bogotá', '3104370350', 'est.juliana.navarro30@littlehorizons.edu.co', 'O+', NULL, NULL, '2021-01-20', 'Graduado'),
+('CC', '1034567831', 'Felipe', NULL, 'Pardo', 'Hernández', '2010-07-09', 'M', 'Calle 41 # 51-41, Bogotá', '3104382695', 'est.felipe.pardo31@littlehorizons.edu.co', 'A+', NULL, NULL, '2022-01-20', 'Retirado'),
+('CC', '1034567832', 'Sofía', 'José', 'Salazar', 'Pérez', '2011-08-11', 'F', 'Calle 42 # 52-42, Bogotá', '3104395040', 'est.sofia.salazar32@littlehorizons.edu.co', 'B+', NULL, NULL, '2023-01-20', 'Suspendido');
 
--- -----------------------------------------------------------------------------
--- 2.10 INSERCIÓN DE REGISTROS ACADÉMICOS (45 Registros - Mínimo 30)
--- -----------------------------------------------------------------------------
-INSERT INTO `registros_academicos` (`id_registro`, `id_inscripcion`, `año_academico`, `periodo`, `valor_nota`, `porcentaje`, `observaciones`) VALUES
-(1, 1, 2026, 'I', 4.5, 25.00, 'Excelente desempeño en álgebra de polinomios'),
-(2, 1, 2026, 'II', 4.8, 25.00, 'Participación destacada y resolución analítica'),
-(3, 2, 2026, 'I', 4.0, 25.00, 'Buen ensayo argumentativo sobre literatura'),
-(4, 2, 2026, 'II', 4.2, 25.00, 'Progreso continuo en comprensión lectora'),
-(5, 3, 2026, 'I', 4.7, 25.00, 'Destacado informe de laboratorio de genética'),
-(6, 4, 2026, 'I', 3.8, 25.00, 'Cumplimiento adecuado de talleres de geografía'),
-(7, 5, 2026, 'I', 5.0, 25.00, 'Proyecto de software calificado con honores'),
-(8, 6, 2026, 'I', 3.9, 25.00, 'Buen manejo de ecuaciones lineales'),
-(9, 7, 2026, 'I', 4.1, 25.00, 'Buena redacción en análisis de fábulas'),
-(10, 8, 2026, 'I', 4.3, 25.00, 'Apropiación de conceptos históricos colombianos'),
-(11, 9, 2026, 'I', 4.6, 25.00, 'Alto nivel de expresión oral en inglés'),
-(12, 10, 2026, 'I', 2.8, 25.00, 'Dificultades en identidades trigonométricas'),
-(13, 10, 2026, 'II', 3.2, 25.00, 'Recuperación parcial en examen temático'),
-(14, 11, 2026, 'I', 3.5, 25.00, 'Entrega básica de ensayos en lengua castellana'),
-(15, 12, 2026, 'I', 2.5, 25.00, 'Falta de entrega de guías de laboratorio físico'),
-(16, 12, 2026, 'II', 3.0, 25.00, 'Aprobó con nota mínima en sustentación'),
-(17, 13, 2026, 'I', 3.4, 25.00, 'Pruebas teóricas regulares de química general'),
-(18, 14, 2026, 'I', 4.8, 25.00, 'Sobresaliente en geometría euclidiana'),
-(19, 15, 2026, 'I', 4.5, 25.00, 'Ortografía y vocabulario impecables'),
-(20, 16, 2026, 'I', 4.6, 25.00, 'Conocimiento sobresaliente del entorno natural'),
-(21, 17, 2026, 'I', 5.0, 25.00, 'Obra pictórica seleccionada para exposición'),
-(22, 18, 2026, 'I', 4.9, 25.00, 'Destreza superior en límites y cálculo'),
-(23, 18, 2026, 'II', 4.7, 25.00, 'Resolución analítica de derivadas complejas'),
-(24, 19, 2026, 'I', 4.4, 25.00, 'Ensayo de literatura universal bien sustentado'),
-(25, 20, 2026, 'I', 4.6, 25.00, 'Excelente comprensión de cinemática y ondas'),
-(26, 21, 2026, 'I', 4.8, 25.00, 'Laboratorio de síntesis orgánica impecable'),
-(27, 22, 2026, 'I', 5.0, 25.00, 'Diseño e implementación de base de datos completa'),
-(28, 23, 2026, 'I', 4.4, 25.00, 'Buen rendimiento en álgebra intermedia'),
-(29, 24, 2026, 'I', 4.0, 25.00, 'Lectura crítica y análisis textual apropiado'),
-(30, 25, 2026, 'I', 4.5, 25.00, 'Buen informe de laboratorio en biología'),
-(31, 26, 2026, 'I', 4.8, 25.00, 'Excelente proyecto en Python y estructuras de datos'),
-(32, 27, 2026, 'I', 4.2, 25.00, 'Participación activa en speaking de inglés básico'),
-(33, 28, 2026, 'I', 3.7, 25.00, 'Comprensión intermedia de álgebra lineal'),
-(34, 29, 2026, 'I', 4.1, 25.00, 'Comprensión lectora y redacción aceptable'),
-(35, 30, 2026, 'I', 4.3, 25.00, 'Resolución de problemas aritméticos'),
-(36, 31, 2026, 'I', 4.5, 25.00, 'Redacción creativa y fluidez verbal'),
-(37, 32, 2026, 'I', 4.7, 25.00, 'Excelente deducción trigonométrica'),
-(38, 33, 2026, 'I', 4.4, 25.00, 'Pruebas físicas sustentadas con rigor'),
-(39, 34, 2026, 'I', 3.6, 25.00, 'Talleres entregados con observaciones menores'),
-(40, 35, 2026, 'I', 4.0, 25.00, 'Participación en análisis histórico'),
-(41, 36, 2026, 'I', 4.6, 25.00, 'Buen análisis de cálculo diferencial'),
-(42, 37, 2026, 'I', 4.2, 25.00, 'Experimentos de laboratorio físico'),
-(43, 38, 2026, 'I', 4.1, 25.00, 'Buen trabajo en trigonometría'),
-(44, 39, 2026, 'I', 3.9, 25.00, 'Revisión periódica de álgebra'),
-(45, 40, 2026, 'I', 4.8, 25.00, 'Excelente rendimiento general en matemáticas');
+-- 2. Acudientes (30 registros)
+INSERT INTO acudientes (tipo_documento, numero_documento, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, parentesco, telefono_principal, telefono_secundario, correo_electronico, direccion, ocupacion, es_responsable_financiero) VALUES
+('CC', '80123401', 'Daniel', 'David', 'Rodríguez', 'Rivera', 'Padre', '3155023456', NULL, 'acudiente1.rodríguez@correo.com', 'Carrera 16 # 31-16, Bogotá', 'Médica Pediatra', TRUE),
+('CC', '80123402', 'Mariana', 'María', 'Gómez', 'Díaz', 'Madre', '3155046912', '3006022222', 'acudiente2.gomez@correo.com', 'Carrera 17 # 32-17, Bogotá', 'Contadora Pública', TRUE),
+('CC', '80123403', 'Samuel', 'Sofía', 'Martínez', 'Vargas', 'Padre', '3155070368', NULL, 'acudiente3.martínez@correo.com', 'Carrera 18 # 33-18, Bogotá', 'Arquitecto', TRUE),
+('CC', '80123404', 'Sara', 'Lucía', 'López', 'Castro', 'Madre', '3155093824', '3006044444', 'acudiente4.lopez@correo.com', 'Carrera 19 # 34-19, Bogotá', 'Abogada', TRUE),
+('CC', '80123405', 'Lucas', NULL, 'González', 'Morales', 'Padre', '3155117280', NULL, 'acudiente5.gonzalez@correo.com', 'Carrera 20 # 35-20, Bogotá', 'Administrador', TRUE),
+('CC', '80123406', 'Daniela', 'Antonio', 'Hernández', 'Rojas', 'Madre', '3155140736', '3006066666', 'acudiente6.hernandez@correo.com', 'Carrera 21 # 36-21, Bogotá', 'Docente', TRUE),
+('CC', '80123407', 'Gabriel', 'Alejandra', 'Pérez', 'Ortiz', 'Padre', '3155164192', NULL, 'acudiente7.pérez@correo.com', 'Carrera 22 # 37-22, Bogotá', 'Comerciante', TRUE),
+('CC', '80123408', 'Victoria', NULL, 'Sánchez', 'Silva', 'Madre', '3155187648', '3006088888', 'acudiente8.sanchez@correo.com', 'Carrera 23 # 38-23, Bogotá', 'Enfermera', TRUE),
+('CC', '80123409', 'David', 'Carlos', 'Ramírez', 'Mendoza', 'Tutor Legal', '3155211104', NULL, 'acudiente9.ramírez@correo.com', 'Carrera 24 # 39-24, Bogotá', 'Diseñador Gráfico', TRUE),
+('CC', '80123410', 'Laura', 'Elena', 'Torres', 'Reyes', 'Madre', '3155234560', '3006111110', 'acudiente10.torres@correo.com', 'Carrera 25 # 40-25, Bogotá', 'Ingeniero Civil', TRUE),
+('CC', '80123411', 'Andrés', NULL, 'Flores', 'Jiménez', 'Padre', '3155258016', NULL, 'acudiente11.flores@correo.com', 'Carrera 26 # 41-26, Bogotá', 'Médica Pediatra', TRUE),
+('CC', '80123412', 'Juliana', 'Esteban', 'Rivera', 'Moreno', 'Madre', '3155281472', '3006133332', 'acudiente12.rivera@correo.com', 'Carrera 27 # 42-27, Bogotá', 'Contadora Pública', TRUE),
+('CC', '80123413', 'Mateo', 'Isabel', 'Díaz', 'Álvarez', 'Padre', '3155304928', NULL, 'acudiente13.díaz@correo.com', 'Carrera 28 # 43-28, Bogotá', 'Arquitecto', TRUE),
+('CC', '80123414', 'Valentina', NULL, 'Vargas', 'Romero', 'Madre', '3155328384', '3006155554', 'acudiente14.vargas@correo.com', 'Carrera 29 # 44-29, Bogotá', 'Abogada', TRUE),
+('CC', '80123415', 'Sebastián', 'José', 'Castro', 'Ruiz', 'Padre', '3155351840', NULL, 'acudiente15.castro@correo.com', 'Carrera 30 # 45-30, Bogotá', 'Administrador', TRUE),
+('CC', '80123416', 'Lucía', 'Andrés', 'Morales', 'Muñoz', 'Madre', '3155375296', '3006177776', 'acudiente16.morales@correo.com', 'Carrera 31 # 46-31, Bogotá', 'Docente', TRUE),
+('CC', '80123417', 'Daniel', 'David', 'Rojas', 'Guerrero', 'Padre', '3155398752', NULL, 'acudiente17.rojas@correo.com', 'Carrera 32 # 47-32, Bogotá', 'Comerciante', TRUE),
+('CC', '80123418', 'Mariana', 'María', 'Ortiz', 'Cárdenas', 'Tutor Legal', '3155422208', '3006199998', 'acudiente18.ortiz@correo.com', 'Carrera 33 # 48-33, Bogotá', 'Enfermera', TRUE),
+('CC', '80123419', 'Samuel', 'Sofía', 'Silva', 'Navarro', 'Padre', '3155445664', NULL, 'acudiente19.silva@correo.com', 'Carrera 34 # 49-34, Bogotá', 'Diseñador Gráfico', TRUE),
+('CC', '80123420', 'Sara', 'Lucía', 'Mendoza', 'Pardo', 'Madre', '3155469120', '3006222220', 'acudiente20.mendoza@correo.com', 'Carrera 35 # 50-35, Bogotá', 'Ingeniero Civil', TRUE),
+('CC', '80123421', 'Lucas', NULL, 'Reyes', 'Salazar', 'Padre', '3155492576', NULL, 'acudiente21.reyes@correo.com', 'Carrera 36 # 51-36, Bogotá', 'Médica Pediatra', TRUE),
+('CC', '80123422', 'Daniela', 'Antonio', 'Jiménez', 'Rodríguez', 'Madre', '3155516032', '3006244442', 'acudiente22.jiménez@correo.com', 'Carrera 37 # 52-37, Bogotá', 'Contadora Pública', TRUE),
+('CC', '80123423', 'Gabriel', 'Alejandra', 'Moreno', 'Gómez', 'Padre', '3155539488', NULL, 'acudiente23.moreno@correo.com', 'Carrera 38 # 53-38, Bogotá', 'Arquitecto', TRUE),
+('CC', '80123424', 'Victoria', NULL, 'Álvarez', 'Martínez', 'Madre', '3155562944', '3006266664', 'acudiente24.alvarez@correo.com', 'Carrera 39 # 54-39, Bogotá', 'Abogada', TRUE),
+('CC', '80123425', 'David', 'Carlos', 'Romero', 'López', 'Padre', '3155586400', NULL, 'acudiente25.romero@correo.com', 'Carrera 40 # 55-40, Bogotá', 'Administrador', TRUE),
+('CC', '80123426', 'Laura', 'Elena', 'Ruiz', 'González', 'Madre', '3155609856', '3006288886', 'acudiente26.ruiz@correo.com', 'Carrera 41 # 56-41, Bogotá', 'Docente', TRUE),
+('CC', '80123427', 'Andrés', NULL, 'Muñoz', 'Hernández', 'Tutor Legal', '3155633312', NULL, 'acudiente27.muñoz@correo.com', 'Carrera 42 # 57-42, Bogotá', 'Comerciante', TRUE),
+('CC', '80123428', 'Juliana', 'Esteban', 'Guerrero', 'Pérez', 'Madre', '3155656768', '3006311108', 'acudiente28.guerrero@correo.com', 'Carrera 43 # 58-43, Bogotá', 'Enfermera', TRUE),
+('CC', '80123429', 'Mateo', 'Isabel', 'Cárdenas', 'Sánchez', 'Padre', '3155680224', NULL, 'acudiente29.cardenas@correo.com', 'Carrera 44 # 59-44, Bogotá', 'Diseñador Gráfico', TRUE),
+('CC', '80123430', 'Valentina', NULL, 'Navarro', 'Ramírez', 'Madre', '3155703680', '3006333330', 'acudiente30.navarro@correo.com', 'Carrera 45 # 60-45, Bogotá', 'Ingeniero Civil', TRUE);
 
--- -----------------------------------------------------------------------------
--- 2.11 INSERCIÓN DE ASISTENCIAS (40 Registros - Con Patrón de >3 Ausencias en 1 Semana)
--- -----------------------------------------------------------------------------
-INSERT INTO `asistencias` (`id_asistencia`, `id_estudiante`, `id_asignacion`, `fecha`, `estado_asistencia`, `observaciones`) VALUES
-(1, 1, 3, '2026-03-02', 'Presente', 'Puntual'),
-(2, 1, 3, '2026-03-04', 'Presente', 'Puntual'),
-(3, 1, 3, '2026-03-06', 'Presente', 'Puntual'),
-(4, 2, 2, '2026-03-02', 'Presente', 'Puntual'),
-(5, 2, 2, '2026-03-03', 'Tardanza', 'Ingreso 15 minutos tarde por tráfico vehicular'),
-(6, 2, 2, '2026-03-05', 'Presente', 'Puntual'),
--- Patrón de inasistencia severa para el estudiante Mateo Martínez (id=3) en la semana del 9 al 13 de marzo de 2026:
-(7, 3, 4, '2026-03-09', 'Ausente', 'No asistió a primera hora sin justificación previa'),
-(8, 3, 4, '2026-03-10', 'Ausente', 'Inasistencia reiterada, sin comunicación del acudiente'),
-(9, 3, 4, '2026-03-11', 'Ausente', 'Tercer día consecutivo sin asistir'),
-(10, 3, 4, '2026-03-12', 'Ausente', 'Cuarto día consecutivo de inasistencia - Reportar a coordinación'),
-(11, 3, 4, '2026-03-13', 'Excusa Médica', 'Acudiente presentó incapacidad de IPS por virosis'),
-(12, 4, 1, '2026-03-02', 'Presente', 'Puntual'),
-(13, 4, 1, '2026-03-03', 'Presente', 'Puntual'),
-(14, 5, 5, '2026-03-02', 'Presente', 'Puntual'),
-(15, 5, 5, '2026-03-04', 'Presente', 'Puntual'),
-(16, 6, 3, '2026-03-02', 'Presente', 'Puntual'),
-(17, 6, 3, '2026-03-04', 'Presente', 'Puntual'),
-(18, 6, 3, '2026-03-06', 'Tardanza', 'Llegó 10 min tarde'),
-(19, 7, 22, '2026-03-02', 'Presente', 'Puntual'),
-(20, 7, 22, '2026-03-05', 'Presente', 'Puntual'),
-(21, 8, 2, '2026-03-02', 'Presente', 'Puntual'),
-(22, 8, 2, '2026-03-04', 'Ausente', 'Cita médica familiar informada'),
-(23, 9, 1, '2026-03-02', 'Presente', 'Puntual'),
-(24, 9, 1, '2026-03-05', 'Presente', 'Puntual'),
-(25, 10, 4, '2026-03-02', 'Presente', 'Puntual'),
-(26, 10, 4, '2026-03-04', 'Presente', 'Puntual'),
-(27, 11, 3, '2026-03-02', 'Presente', 'Puntual'),
-(28, 11, 3, '2026-03-05', 'Presente', 'Puntual'),
-(29, 13, 5, '2026-03-02', 'Presente', 'Puntual'),
-(30, 13, 5, '2026-03-04', 'Presente', 'Puntual'),
-(31, 14, 2, '2026-03-02', 'Presente', 'Puntual'),
-(32, 15, 1, '2026-03-02', 'Presente', 'Puntual'),
-(33, 16, 3, '2026-03-02', 'Presente', 'Puntual'),
-(34, 17, 4, '2026-03-02', 'Presente', 'Puntual'),
-(35, 18, 22, '2026-03-02', 'Presente', 'Puntual'),
-(36, 19, 5, '2026-03-02', 'Presente', 'Puntual'),
-(37, 20, 2, '2026-03-02', 'Presente', 'Puntual'),
-(38, 21, 1, '2026-03-02', 'Presente', 'Puntual'),
-(39, 22, 3, '2026-03-02', 'Presente', 'Puntual'),
-(40, 23, 4, '2026-03-02', 'Presente', 'Puntual');
+-- 3. Relación Estudiante - Acudiente (soporta hermanos bajo un mismo acudiente)
+INSERT INTO estudiante_acudiente (id_estudiante, id_acudiente, es_principal, es_contacto_emergencia) VALUES
+(1, 1, TRUE, TRUE),
+(2, 1, TRUE, TRUE),
+(3, 3, TRUE, TRUE),
+(4, 3, TRUE, TRUE),
+(5, 5, TRUE, TRUE),
+(6, 5, TRUE, TRUE),
+(7, 7, TRUE, TRUE),
+(8, 8, TRUE, TRUE),
+(9, 9, TRUE, TRUE),
+(10, 10, TRUE, TRUE),
+(11, 11, TRUE, TRUE),
+(12, 12, TRUE, TRUE),
+(13, 13, TRUE, TRUE),
+(14, 14, TRUE, TRUE),
+(15, 15, TRUE, TRUE),
+(16, 16, TRUE, TRUE),
+(17, 17, TRUE, TRUE),
+(18, 18, TRUE, TRUE),
+(19, 19, TRUE, TRUE),
+(20, 20, TRUE, TRUE),
+(21, 21, TRUE, TRUE),
+(22, 22, TRUE, TRUE),
+(23, 23, TRUE, TRUE),
+(24, 24, TRUE, TRUE),
+(25, 25, TRUE, TRUE),
+(26, 26, TRUE, TRUE),
+(27, 27, TRUE, TRUE),
+(28, 28, TRUE, TRUE),
+(29, 29, TRUE, TRUE),
+(30, 30, TRUE, TRUE),
+(31, 21, TRUE, TRUE),
+(32, 22, TRUE, TRUE),
+(1, 2, FALSE, TRUE),
+(3, 4, FALSE, TRUE);
 
--- -----------------------------------------------------------------------------
--- 2.12 INSERCIÓN DE CLUBES (30 Registros - Mínimo 30)
--- -----------------------------------------------------------------------------
-INSERT INTO `clubes` (`id_club`, `nombre_club`, `descripcion`, `id_profesor_supervisor`, `capacidad_maxima`, `horario_reunion`, `lugar_reunion`, `estado`) VALUES
-(1, 'Club de Robótica e Inteligencia Artificial', 'Desarrollo de prototipos mecatrónicos y algoritmos de visión por computador', 14, 25, 'Miércoles y Viernes 15:00 - 17:00', 'Laboratorio Maker 1', 'Activo'),
-(2, 'Club de Astronomía y Ciencias del Espacio', 'Observación con telescopio, astrofísica divulgativa y misiones espaciales', 24, 30, 'Jueves 18:30 - 20:30', 'Observatorio / Terraza Bloque B', 'Activo'),
-(3, 'Club de Debate y Modelo de Naciones Unidas (MUN)', 'Oratoria, resolución diplomática de conflictos y relaciones internacionales', 7, 30, 'Martes 15:30 - 17:30', 'Auditorio Principal', 'Activo'),
-(4, 'Club de Matemáticas Olímpicas', 'Entrenamiento para olimpiadas colombianas y regionales de matemáticas', 1, 20, 'Lunes y Miércoles 15:00 - 16:30', 'Aula 204 Bloque A', 'Activo'),
-(5, 'Club de Ajedrez y Pensamiento Estratégico', 'Estrategia de aperturas, finales de juego y torneos suizos', 27, 25, 'Viernes 14:30 - 16:30', 'Sala de Juegos Mentales', 'Activo'),
-(6, 'Club de Teatro Entre Bambalinas', 'Expresión corporal, improvisación, dramaturgia y puesta en escena', 17, 35, 'Martes y Jueves 15:00 - 17:00', 'Teatro Auditorio Little Horizons', 'Activo'),
-(7, 'Coro Polifónico Little Horizons', 'Técnica vocal, repertorio polifónico nacional e internacional', 11, 40, 'Lunes y Miércoles 16:00 - 18:00', 'Salón de Ensayos Musicales', 'Activo'),
-(8, 'Club de Pintura y Acuarela Creativa', 'Técnicas mixtas, composición sobre lienzo y acuarela botánica', 10, 20, 'Viernes 15:00 - 17:00', 'Taller de Arte Bloque C', 'Activo'),
-(9, 'Orquesta Sinfónica Juvenil', 'Instrumentación de vientos, cuerdas y percusión clásica', 11, 45, 'Sábados 08:00 - 12:00', 'Sala Sinfónica', 'Activo'),
-(10, 'Club de Danza Folclórica y Contemporánea', 'Coreografía de bailes típicos de Colombia y danzas del mundo', 22, 30, 'Lunes y Jueves 15:30 - 17:30', 'Gimnasio Cubierto Sala 2', 'Activo'),
-(11, 'Club de Fútbol Horizontes FC', 'Fundamentos tácticos, preparación física y torneos intercolegiales', 12, 35, 'Martes y Jueves 16:00 - 18:00', 'Cancha Sintética de Fútbol', 'Activo'),
-(12, 'Equipo de Baloncesto Águilas', 'Dribling, lanzamientos de triple y sistemas tácticos defensivos', 12, 25, 'Lunes y Miércoles 16:00 - 18:00', 'Coliseo Polideportivo', 'Activo'),
-(13, 'Club de Voleibol Femenino y Masculino', 'Saques, remates en red, recepción y juego posicional', 12, 25, 'Viernes 15:00 - 17:30', 'Cancha Múltiple 1', 'Activo'),
-(14, 'Club de Natación y Salvamento Acuático', 'Estilos libre, espalda, pecho, mariposa y rescate acuático', 26, 20, 'Martes y Viernes 15:00 - 17:00', 'Complejo Acuático Little Horizons', 'Activo'),
-(15, 'Club de Atletismo y Pista', 'Carreras de velocidad, relevos, salto alto y fondo', 26, 30, 'Lunes y Miércoles 15:00 - 16:30', 'Pista Atlética Exterior', 'Activo'),
-(16, 'Semillero de Jóvenes Científicos', 'Metodología de la investigación, experimentos y ferias de ciencia', 5, 25, 'Miércoles 14:30 - 16:30', 'Laboratorio de Biología', 'Activo'),
-(17, 'Club de Química Experimental', 'Reacciones estequiométricas, síntesis verde y cristales químicos', 4, 20, 'Jueves 15:00 - 17:00', 'Laboratorio de Química', 'Activo'),
-(18, 'Club de Ecología y Jardín Botánico', 'Compostaje orgánico, huerta escolar y reforestación de especies nativas', 15, 30, 'Viernes 14:00 - 16:00', 'Vivero y Huerto Institucional', 'Activo'),
-(19, 'Club de Emprendimiento y Finanzas Personales', 'Creación de startups escolares, presupuestos y economía circular', 16, 25, 'Martes 15:00 - 17:00', 'Aula de Negocios 301', 'Activo'),
-(20, 'Club de Desarrollo de Videojuegos', 'Programación en Python, diseño de sprites, animación y mecánicas lúdicas', 13, 20, 'Miércoles y Jueves 15:30 - 17:30', 'Sala de Sistemas 2', 'Activo'),
-(21, 'Club de Periodismo Escolar La Voz de Horizontes', 'Redacción de crónicas, entrevistas, edición de periódico y podcast escolar', 28, 25, 'Lunes 15:00 - 17:00', 'Sala de Prensa y Medios', 'Activo'),
-(22, 'Club de Lectura y Poesía Palabras Vivas', 'Tertulias literarias, café literario y recitales poéticos', 25, 25, 'Jueves 16:00 - 17:30', 'Biblioteca Sala de Lectura', 'Activo'),
-(23, 'Club de Cine y Producción Audiovisual', 'Guionismo cinematográfico, encuadres de cámara, sonido y montaje', 29, 20, 'Viernes 15:30 - 18:00', 'Estudio Multimedia', 'Activo'),
-(24, 'Club de Fotografía Digital y Paisajismo', 'Fotografía macro, retrato, técnicas de iluminación y edición digital', 29, 20, 'Sábados 09:00 - 11:30', 'Estudio de Fotografía y Campus', 'Activo'),
-(25, 'Club de Idioma Francés y Cultura Francófona', 'Conversación cotidiana, gastronomía, música francesa y cine-club', 9, 20, 'Martes 15:00 - 16:30', 'Laboratorio de Idiomas', 'Activo'),
-(26, 'Club de Liderazgo y Oratoria Juvenil', 'Técnicas de persuasión, comunicación no verbal e impacto de mensaje', 23, 25, 'Miércoles 15:00 - 16:30', 'Sala de Conferencias B', 'Activo'),
-(27, 'Club de Primeros Auxilios y Brigada Escolar', 'Reanimación RCP, vendajes, inmovilización y evacuación de emergencias', 12, 30, 'Jueves 15:00 - 16:30', 'Enfermería y Patios', 'Activo'),
-(28, 'Club de Modelado 3D e Impresión Digital', 'Diseño CAD en Tinkercad/Blender, calibración e impresión aditiva', 14, 15, 'Lunes 15:30 - 17:30', 'Laboratorio Maker 2', 'Activo'),
-(29, 'Club de Cocina Saludable y Mini Chefs', 'Principios nutricionales, manipulación de alimentos y recetas saludables', 21, 20, 'Sábados 10:00 - 12:30', 'Taller Gastronómico Escolar', 'Activo'),
-(30, 'Club de Origami y Geometría Creativa', 'Pliegues tradicionales japoneses, figuras modulares y aplicaciones geométricas', 19, 25, 'Viernes 15:00 - 16:30', 'Taller de Creatividad', 'Activo');
+-- 4. Matrículas (42 registros)
+INSERT INTO matriculas (id_estudiante, id_grado, año_academico, estado_matricula, fecha_matricula, fecha_retiro, observaciones) VALUES
+(1, 1, 2026, 'Activa', '2026-01-15', NULL, 'Matrícula regular 2026'),
+(2, 2, 2026, 'Activa', '2026-01-15', NULL, 'Matrícula regular 2026'),
+(3, 3, 2026, 'Activa', '2026-01-15', NULL, 'Matrícula regular 2026'),
+(4, 4, 2026, 'Activa', '2026-01-15', NULL, 'Matrícula regular 2026'),
+(5, 5, 2026, 'Activa', '2026-01-15', NULL, 'Matrícula regular 2026'),
+(6, 6, 2026, 'Activa', '2026-01-15', NULL, 'Matrícula regular 2026'),
+(7, 7, 2026, 'Activa', '2026-01-15', NULL, 'Matrícula regular 2026'),
+(8, 8, 2026, 'Activa', '2026-01-15', NULL, 'Matrícula regular 2026'),
+(9, 9, 2026, 'Activa', '2026-01-15', NULL, 'Matrícula regular 2026'),
+(10, 10, 2026, 'Activa', '2026-01-15', NULL, 'Matrícula regular 2026'),
+(11, 11, 2026, 'Activa', '2026-01-15', NULL, 'Matrícula regular 2026'),
+(12, 12, 2026, 'Activa', '2026-01-15', NULL, 'Matrícula regular 2026'),
+(13, 1, 2026, 'Activa', '2026-01-15', NULL, 'Matrícula regular 2026'),
+(14, 2, 2026, 'Activa', '2026-01-15', NULL, 'Matrícula regular 2026'),
+(15, 3, 2026, 'Activa', '2026-01-15', NULL, 'Matrícula regular 2026'),
+(16, 4, 2026, 'Activa', '2026-01-15', NULL, 'Matrícula regular 2026'),
+(17, 5, 2026, 'Activa', '2026-01-15', NULL, 'Matrícula regular 2026'),
+(18, 6, 2026, 'Activa', '2026-01-15', NULL, 'Matrícula regular 2026'),
+(19, 7, 2026, 'Activa', '2026-01-15', NULL, 'Matrícula regular 2026'),
+(20, 8, 2026, 'Activa', '2026-01-15', NULL, 'Matrícula regular 2026'),
+(21, 9, 2026, 'Activa', '2026-01-15', NULL, 'Matrícula regular 2026'),
+(22, 10, 2026, 'Activa', '2026-01-15', NULL, 'Matrícula regular 2026'),
+(23, 11, 2026, 'Activa', '2026-01-15', NULL, 'Matrícula regular 2026'),
+(24, 12, 2026, 'Activa', '2026-01-15', NULL, 'Matrícula regular 2026'),
+(25, 1, 2026, 'Activa', '2026-01-15', NULL, 'Matrícula regular 2026'),
+(26, 2, 2026, 'Activa', '2026-01-15', NULL, 'Matrícula regular 2026'),
+(27, 3, 2026, 'Activa', '2026-01-15', NULL, 'Matrícula regular 2026'),
+(28, 4, 2026, 'Activa', '2026-01-15', NULL, 'Matrícula regular 2026'),
+(29, 5, 2026, 'Activa', '2026-01-15', NULL, 'Matrícula regular 2026'),
+(30, 6, 2026, 'Completada', '2026-01-15', NULL, 'Matrícula regular 2026'),
+(31, 7, 2026, 'Retirada', '2026-01-15', '2026-06-15', 'Matrícula regular 2026'),
+(32, 8, 2026, 'Retirada', '2026-01-15', NULL, 'Matrícula regular 2026'),
+(1, 12, 2025, 'Completada', '2025-01-15', NULL, 'Año académico 2025 aprobado'),
+(2, 1, 2025, 'Completada', '2025-01-15', NULL, 'Año académico 2025 aprobado'),
+(3, 2, 2025, 'Completada', '2025-01-15', NULL, 'Año académico 2025 aprobado'),
+(4, 3, 2025, 'Completada', '2025-01-15', NULL, 'Año académico 2025 aprobado'),
+(5, 4, 2025, 'Completada', '2025-01-15', NULL, 'Año académico 2025 aprobado'),
+(6, 5, 2025, 'Completada', '2025-01-15', NULL, 'Año académico 2025 aprobado'),
+(7, 6, 2025, 'Completada', '2025-01-15', NULL, 'Año académico 2025 aprobado'),
+(8, 7, 2025, 'Completada', '2025-01-15', NULL, 'Año académico 2025 aprobado'),
+(9, 8, 2025, 'Completada', '2025-01-15', NULL, 'Año académico 2025 aprobado'),
+(10, 9, 2025, 'Completada', '2025-01-15', NULL, 'Año académico 2025 aprobado');
 
--- -----------------------------------------------------------------------------
--- 2.13 INSERCIÓN DE MEMBRESÍAS EN CLUBES (35 Registros)
--- -----------------------------------------------------------------------------
-INSERT INTO `membresias_club` (`id_membresia`, `id_club`, `id_estudiante`, `fecha_ingreso`, `estado`) VALUES
-(1, 1, 1, '2026-02-01', 'Activa'),
-(2, 4, 1, '2026-02-01', 'Activa'),
-(3, 5, 2, '2026-02-02', 'Activa'),
-(4, 7, 2, '2026-02-02', 'Activa'),
-(5, 11, 3, '2026-02-03', 'Activa'),
-(6, 6, 4, '2026-02-01', 'Activa'),
-(7, 8, 4, '2026-02-05', 'Activa'),
-(8, 1, 5, '2026-02-01', 'Activa'),
-(9, 20, 5, '2026-02-01', 'Activa'),
-(10, 2, 6, '2026-02-02', 'Activa'),
-(11, 18, 6, '2026-02-02', 'Activa'),
-(12, 11, 7, '2026-02-03', 'Activa'),
-(13, 29, 7, '2026-02-03', 'Activa'),
-(14, 7, 8, '2026-02-01', 'Activa'),
-(15, 3, 9, '2026-02-02', 'Activa'),
-(16, 17, 10, '2026-02-01', 'Activa'),
-(17, 14, 10, '2026-02-01', 'Activa'),
-(18, 1, 11, '2026-02-02', 'Activa'),
-(19, 10, 12, '2026-02-04', 'Activa'),
-(20, 20, 13, '2026-02-01', 'Activa'),
-(21, 28, 13, '2026-02-01', 'Activa'),
-(22, 5, 14, '2026-02-02', 'Activa'),
-(23, 15, 15, '2026-02-03', 'Activa'),
-(24, 11, 16, '2026-02-01', 'Activa'),
-(25, 12, 17, '2026-02-01', 'Activa'),
-(26, 30, 18, '2026-02-04', 'Activa'),
-(27, 3, 19, '2026-02-01', 'Activa'),
-(28, 21, 19, '2026-02-01', 'Activa'),
-(29, 22, 20, '2026-02-02', 'Activa'),
-(30, 13, 21, '2026-02-03', 'Activa'),
-(31, 23, 22, '2026-02-01', 'Activa'),
-(32, 24, 23, '2026-02-02', 'Activa'),
-(33, 26, 24, '2026-02-04', 'Activa'),
-(34, 25, 25, '2026-02-01', 'Activa'),
-(35, 1, 2, '2026-02-10', 'Retirada');
+-- 5. Materias (30 registros)
+INSERT INTO materias (codigo_materia, nombre_materia, descripcion, id_grado, horas_semanales, esta_activa) VALUES
+('MAT-1-01', 'Matemáticas Grado Pre', 'Aritmética, álgebra y geometría', 1, 5, TRUE),
+('ESP-2-02', 'Lengua Castellana Grado 1', 'Lectura crítica y producción textual', 2, 4, TRUE),
+('ING-3-03', 'Inglés Grado 2', 'Comunicación bilingüe B1/B2', 3, 4, TRUE),
+('CNAT-4-04', 'Ciencias Naturales Grado 3', 'Biología, física y química escolar', 4, 4, TRUE),
+('CSOC-5-05', 'Ciencias Sociales Grado 4', 'Historia, geografía y ciudadanía', 5, 3, TRUE),
+('INFO-6-06', 'Informática y Robótica Grado 5', 'Programación y pensamiento computacional', 6, 3, TRUE),
+('ART-7-07', 'Educación Artística Grado 6', 'Artes plásticas, música y expresión', 7, 2, TRUE),
+('EDFIS-8-08', 'Educación Física Grado 7', 'Deporte formativo y salud', 8, 2, TRUE),
+('ETICA-9-09', 'Ética y Valores Grado 8', 'Convivencia y formación ciudadana', 9, 2, TRUE),
+('FILO-10-10', 'Filosofía Grado 9', 'Lógica y argumentación', 10, 2, TRUE),
+('MAT-11-11', 'Matemáticas Grado 10', 'Aritmética, álgebra y geometría', 11, 5, TRUE),
+('ESP-12-12', 'Lengua Castellana Grado 11', 'Lectura crítica y producción textual', 12, 4, TRUE),
+('ING-1-13', 'Inglés Grado Pre', 'Comunicación bilingüe B1/B2', 1, 4, TRUE),
+('CNAT-2-14', 'Ciencias Naturales Grado 1', 'Biología, física y química escolar', 2, 4, TRUE),
+('CSOC-3-15', 'Ciencias Sociales Grado 2', 'Historia, geografía y ciudadanía', 3, 3, TRUE),
+('INFO-4-16', 'Informática y Robótica Grado 3', 'Programación y pensamiento computacional', 4, 3, TRUE),
+('ART-5-17', 'Educación Artística Grado 4', 'Artes plásticas, música y expresión', 5, 2, TRUE),
+('EDFIS-6-18', 'Educación Física Grado 5', 'Deporte formativo y salud', 6, 2, TRUE),
+('ETICA-7-19', 'Ética y Valores Grado 6', 'Convivencia y formación ciudadana', 7, 2, TRUE),
+('FILO-8-20', 'Filosofía Grado 7', 'Lógica y argumentación', 8, 2, TRUE),
+('MAT-9-21', 'Matemáticas Grado 8', 'Aritmética, álgebra y geometría', 9, 5, TRUE),
+('ESP-10-22', 'Lengua Castellana Grado 9', 'Lectura crítica y producción textual', 10, 4, TRUE),
+('ING-11-23', 'Inglés Grado 10', 'Comunicación bilingüe B1/B2', 11, 4, TRUE),
+('CNAT-12-24', 'Ciencias Naturales Grado 11', 'Biología, física y química escolar', 12, 4, TRUE),
+('CSOC-1-25', 'Ciencias Sociales Grado Pre', 'Historia, geografía y ciudadanía', 1, 3, TRUE),
+('INFO-2-26', 'Informática y Robótica Grado 1', 'Programación y pensamiento computacional', 2, 3, TRUE),
+('ART-3-27', 'Educación Artística Grado 2', 'Artes plásticas, música y expresión', 3, 2, TRUE),
+('EDFIS-4-28', 'Educación Física Grado 3', 'Deporte formativo y salud', 4, 2, TRUE),
+('ETICA-5-29', 'Ética y Valores Grado 4', 'Convivencia y formación ciudadana', 5, 2, TRUE),
+('FILO-6-30', 'Filosofía Grado 5', 'Lógica y argumentación', 6, 2, TRUE);
 
--- -----------------------------------------------------------------------------
--- 2.14 INSERCIÓN DE EVENTOS INSTITUCIONALES (10 Registros)
--- -----------------------------------------------------------------------------
-INSERT INTO `eventos` (`id_evento`, `nombre_evento`, `tipo_evento`, `descripcion`, `fecha_evento`, `lugar`, `tiene_competencia`) VALUES
-(1, 'Olimpiadas Científicas Little Horizons 2026', 'Científico', 'Competencia interdisciplinaria de robótica, física y química experimental', '2026-04-18', 'Auditorio y Laboratorios Centrales', TRUE),
-(2, 'Festival Nacional de Danza y Tradición Colombiana', 'Cultural', 'Muestra artística y competitiva de comparsas y danzas folclóricas', '2026-05-22', 'Coliseo Polideportivo', TRUE),
-(3, 'Copa Intercolegial de Baloncesto y Fútbol 2026', 'Deportivo', 'Torneo de integración deportiva con colegios invitados del departamento', '2026-06-05', 'Canchas Deportivas y Coliseo', TRUE),
-(4, 'Modelo de Naciones Unidas LH-MUN 2026', 'Académico', 'Debate internacional de delegaciones sobre crisis geopolíticas y paz mundial', '2026-08-14', 'Auditorio y Aulas Magistrales', TRUE),
-(5, 'Feria Escolar del Libro y Poesía de Cúcuta', 'Cultural', 'Exposición literaria, firmas de autores locales y recitales juveniles', '2026-04-23', 'Biblioteca Central y Plazoleta', FALSE),
-(6, 'Día de la Familia y la Convivencia Escolar', 'Social', 'Jornada recreativa, bazar comunitario y presentaciones de talentos', '2026-09-19', 'Zonas Verdes del Campus', FALSE),
-(7, 'Feria de Innovación, Startups y Tecnología', 'Científico', 'Presentación de prototipos funcionales y aplicaciones móviles de estudiantes', '2026-10-09', 'Pabellón Tecnológico', TRUE),
-(8, 'Torneo Abierto de Ajedrez Jaque al Horizonte', 'Académico', 'Competencia por sistema suizo a 5 rondas avalada por la liga escolar', '2026-05-09', 'Sala de Juegos Mentales', TRUE),
-(9, 'Concierto de Gala de la Orquesta y Coro', 'Cultural', 'Presentación sinfónica semestral para padres de familia e invitados', '2026-06-19', 'Teatro Zulima de Cúcuta', FALSE),
-(10, 'Jornada Ambiental y Siembra del Árbol Institucional', 'Social', 'Siembra de árboles nativos y charlas de preservación de cuencas hídricas', '2026-10-24', 'Sendero Ecológico Escolar', FALSE);
+-- 6. Profesores (30 registros)
+INSERT INTO profesores (tipo_documento, numero_documento, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, correo_electronico, telefono, especializacion, fecha_contratacion, estado) VALUES
+('CC', '79234501', 'Gabriela', 'María', 'Hernández', 'Vargas', 'prof.gabriela.hernandez1@littlehorizons.edu.co', '3187019283', 'Matemáticas', '2018-01-15', 'Activo'),
+('CC', '79234502', 'Tomás', 'Sofía', 'Pérez', 'Castro', 'prof.tomas.pérez2@littlehorizons.edu.co', '3187038566', 'Lengua Castellana', '2019-02-15', 'Activo'),
+('CC', '79234503', 'Valeria', 'Lucía', 'Sánchez', 'Morales', 'prof.valeria.sanchez3@littlehorizons.edu.co', '3187057849', 'Inglés', '2020-03-15', 'Activo'),
+('CC', '79234504', 'Emiliano', NULL, 'Ramírez', 'Rojas', 'prof.emiliano.ramírez4@littlehorizons.edu.co', '3187077132', 'Biología y Química', '2021-04-15', 'Activo'),
+('CC', '79234505', 'Paula', 'Antonio', 'Torres', 'Ortiz', 'prof.paula.torres5@littlehorizons.edu.co', '3187096415', 'Ciencias Sociales', '2022-05-15', 'Activo'),
+('CC', '79234506', 'Martín', 'Alejandra', 'Flores', 'Silva', 'prof.martin.flores6@littlehorizons.edu.co', '3187115698', 'Ingeniería de Sistemas', '2023-06-15', 'Activo'),
+('CC', '79234507', 'Natalia', NULL, 'Rivera', 'Mendoza', 'prof.natalia.rivera7@littlehorizons.edu.co', '3187134981', 'Artes Visuales', '2024-07-15', 'Activo'),
+('CC', '79234508', 'Juan', 'Carlos', 'Díaz', 'Reyes', 'prof.juan.díaz8@littlehorizons.edu.co', '3187154264', 'Educación Física', '2017-08-15', 'Activo'),
+('CC', '79234509', 'Andrea', 'Elena', 'Vargas', 'Jiménez', 'prof.andrea.vargas9@littlehorizons.edu.co', '3187173547', 'Física', '2018-09-15', 'Activo'),
+('CC', '79234510', 'Felipe', NULL, 'Castro', 'Moreno', 'prof.felipe.castro10@littlehorizons.edu.co', '3187192830', 'Filosofía', '2019-10-15', 'Activo'),
+('CC', '79234511', 'Sofía', 'Esteban', 'Morales', 'Álvarez', 'prof.sofia.morales11@littlehorizons.edu.co', '3187212113', 'Matemáticas', '2020-11-15', 'Activo'),
+('CC', '79234512', 'Santiago', 'Isabel', 'Rojas', 'Romero', 'prof.santiago.rojas12@littlehorizons.edu.co', '3187231396', 'Lengua Castellana', '2021-12-15', 'Activo'),
+('CC', '79234513', 'Isabella', NULL, 'Ortiz', 'Ruiz', 'prof.isabella.ortiz13@littlehorizons.edu.co', '3187250679', 'Inglés', '2022-01-15', 'Activo'),
+('CC', '79234514', 'Alejandro', 'José', 'Silva', 'Muñoz', 'prof.alejandro.silva14@littlehorizons.edu.co', '3187269962', 'Biología y Química', '2023-02-15', 'Activo'),
+('CC', '79234515', 'Camila', 'Andrés', 'Mendoza', 'Guerrero', 'prof.camila.mendoza15@littlehorizons.edu.co', '3187289245', 'Ciencias Sociales', '2024-03-15', 'Activo'),
+('CC', '79234516', 'Nicolás', 'David', 'Reyes', 'Cárdenas', 'prof.nicolas.reyes16@littlehorizons.edu.co', '3187308528', 'Ingeniería de Sistemas', '2017-04-15', 'Activo'),
+('CC', '79234517', 'Gabriela', 'María', 'Jiménez', 'Navarro', 'prof.gabriela.jiménez17@littlehorizons.edu.co', '3187327811', 'Artes Visuales', '2018-05-15', 'Activo'),
+('CC', '79234518', 'Tomás', 'Sofía', 'Moreno', 'Pardo', 'prof.tomas.moreno18@littlehorizons.edu.co', '3187347094', 'Educación Física', '2019-06-15', 'Activo'),
+('CC', '79234519', 'Valeria', 'Lucía', 'Álvarez', 'Salazar', 'prof.valeria.alvarez19@littlehorizons.edu.co', '3187366377', 'Física', '2020-07-15', 'Activo'),
+('CC', '79234520', 'Emiliano', NULL, 'Romero', 'Rodríguez', 'prof.emiliano.romero20@littlehorizons.edu.co', '3187385660', 'Filosofía', '2021-08-15', 'Activo'),
+('CC', '79234521', 'Paula', 'Antonio', 'Ruiz', 'Gómez', 'prof.paula.ruiz21@littlehorizons.edu.co', '3187404943', 'Matemáticas', '2022-09-15', 'Activo'),
+('CC', '79234522', 'Martín', 'Alejandra', 'Muñoz', 'Martínez', 'prof.martin.muñoz22@littlehorizons.edu.co', '3187424226', 'Lengua Castellana', '2023-10-15', 'Activo'),
+('CC', '79234523', 'Natalia', NULL, 'Guerrero', 'López', 'prof.natalia.guerrero23@littlehorizons.edu.co', '3187443509', 'Inglés', '2024-11-15', 'Activo'),
+('CC', '79234524', 'Juan', 'Carlos', 'Cárdenas', 'González', 'prof.juan.cardenas24@littlehorizons.edu.co', '3187462792', 'Biología y Química', '2017-12-15', 'Activo'),
+('CC', '79234525', 'Andrea', 'Elena', 'Navarro', 'Hernández', 'prof.andrea.navarro25@littlehorizons.edu.co', '3187482075', 'Ciencias Sociales', '2018-01-15', 'Activo'),
+('CC', '79234526', 'Felipe', NULL, 'Pardo', 'Pérez', 'prof.felipe.pardo26@littlehorizons.edu.co', '3187501358', 'Ingeniería de Sistemas', '2019-02-15', 'Activo'),
+('CC', '79234527', 'Sofía', 'Esteban', 'Salazar', 'Sánchez', 'prof.sofia.salazar27@littlehorizons.edu.co', '3187520641', 'Artes Visuales', '2020-03-15', 'Activo'),
+('CC', '79234528', 'Santiago', 'Isabel', 'Rodríguez', 'Ramírez', 'prof.santiago.rodríguez28@littlehorizons.edu.co', '3187539924', 'Educación Física', '2021-04-15', 'Licencia'),
+('CC', '79234529', 'Isabella', NULL, 'Gómez', 'Torres', 'prof.isabella.gomez29@littlehorizons.edu.co', '3187559207', 'Física', '2022-05-15', 'Inactivo'),
+('CC', '79234530', 'Alejandro', 'José', 'Martínez', 'Flores', 'prof.alejandro.martínez30@littlehorizons.edu.co', '3187578490', 'Filosofía', '2023-06-15', 'Inactivo');
 
--- -----------------------------------------------------------------------------
--- 2.15 INSERCIÓN DE PARTICIPANTES EN EVENTOS (25 Registros)
--- -----------------------------------------------------------------------------
-INSERT INTO `participantes_evento` (`id_participacion`, `id_evento`, `id_estudiante`, `puesto`, `observaciones`) VALUES
-(1, 1, 1, '1er Lugar', 'Medalla de oro en diseño de rover espacial con Arduino'),
-(2, 1, 5, '2do Lugar', 'Prototipo de clasificación automatizada de residuos'),
-(3, 1, 11, '3er Lugar', 'Brazo robótico con servomotores'),
-(4, 1, 13, 'Participante', 'Mención por creatividad en simulación virtual'),
-(5, 2, 4, '1er Lugar', 'Danza solista tradicional de cumbia colombiana'),
-(6, 2, 12, '2do Lugar', 'Pareja de joropo llanero'),
-(7, 2, 22, 'Participante', 'Coreografía de currulao pacífico'),
-(8, 3, 3, '1er Lugar', 'Capitán del equipo campeón de fútbol intercolegial'),
-(9, 3, 16, 'Participante', 'Goleador de la fase de grupos'),
-(10, 3, 7, 'Participante', 'Excelente participación en categoría infantil'),
-(11, 4, 9, '1er Lugar', 'Mejor delegado en el comité de Consejo de Seguridad'),
-(12, 4, 19, '2do Lugar', 'Delegado sobresaliente en crisis económica'),
-(13, 4, 24, 'Participante', 'Ponencia destacada en derechos humanos'),
-(14, 7, 1, '1er Lugar', 'App móvil escolar Little Horizons Connect'),
-(15, 7, 5, '2do Lugar', 'Sistema domótico con control por voz'),
-(16, 7, 13, '3er Lugar', 'Plataforma web de tutorías estudiantiles'),
-(17, 8, 2, '1er Lugar', 'Campeona invicta en torneo suizo categoría Sub-16'),
-(18, 8, 14, '2do Lugar', 'Subcampeón tras desempate Buchholz'),
-(19, 8, 20, 'Participante', 'Excelente desempeño táctico'),
-(20, 5, 6, 'Participante', 'Lectura de poemas propios en recital inaugural'),
-(21, 5, 8, 'Participante', 'Presentación de libro de cuentos ilustrados'),
-(22, 6, 7, 'Participante', 'Presentación en banda rítmica'),
-(23, 6, 18, 'Participante', 'Conducción de la ceremonia protocolaria'),
-(24, 9, 2, 'Participante', 'Primera flauta en concierto de gala'),
-(25, 9, 8, 'Participante', 'Voz soprano en coro polifónico');
+-- 7. Asignaciones de Profesor (30 registros con horarios sin conflicto)
+INSERT INTO asignaciones_profesor (id_profesor, id_materia, año_academico, seccion, dias_horario, hora_inicio, hora_fin) VALUES
+(1, 1, 2026, 'A', 'Martes,Jueves', '07:00:00', '08:30:00'),
+(2, 2, 2026, 'A', 'Miércoles,Viernes', '07:00:00', '08:30:00'),
+(3, 3, 2026, 'A', 'Lunes,Viernes', '07:00:00', '08:30:00'),
+(4, 4, 2026, 'A', 'Martes,Viernes', '07:00:00', '08:30:00'),
+(5, 5, 2026, 'A', 'Lunes,Miércoles', '07:00:00', '08:30:00'),
+(6, 6, 2026, 'A', 'Martes,Jueves', '07:00:00', '08:30:00'),
+(7, 7, 2026, 'A', 'Miércoles,Viernes', '07:00:00', '08:30:00'),
+(8, 8, 2026, 'A', 'Lunes,Viernes', '07:00:00', '08:30:00'),
+(9, 9, 2026, 'A', 'Martes,Viernes', '07:00:00', '08:30:00'),
+(10, 10, 2026, 'A', 'Lunes,Miércoles', '07:00:00', '08:30:00'),
+(11, 11, 2026, 'A', 'Martes,Jueves', '07:00:00', '08:30:00'),
+(12, 12, 2026, 'A', 'Miércoles,Viernes', '07:00:00', '08:30:00'),
+(13, 13, 2026, 'A', 'Lunes,Viernes', '07:00:00', '08:30:00'),
+(14, 14, 2026, 'A', 'Martes,Viernes', '07:00:00', '08:30:00'),
+(15, 15, 2026, 'A', 'Lunes,Miércoles', '07:00:00', '08:30:00'),
+(16, 16, 2026, 'A', 'Martes,Jueves', '07:00:00', '08:30:00'),
+(17, 17, 2026, 'A', 'Miércoles,Viernes', '07:00:00', '08:30:00'),
+(18, 18, 2026, 'A', 'Lunes,Viernes', '07:00:00', '08:30:00'),
+(19, 19, 2026, 'A', 'Martes,Viernes', '07:00:00', '08:30:00'),
+(20, 20, 2026, 'A', 'Lunes,Miércoles', '07:00:00', '08:30:00'),
+(21, 21, 2026, 'A', 'Martes,Jueves', '07:00:00', '08:30:00'),
+(22, 22, 2026, 'A', 'Miércoles,Viernes', '07:00:00', '08:30:00'),
+(23, 23, 2026, 'A', 'Lunes,Viernes', '07:00:00', '08:30:00'),
+(24, 24, 2026, 'A', 'Martes,Viernes', '07:00:00', '08:30:00'),
+(25, 25, 2026, 'A', 'Lunes,Miércoles', '07:00:00', '08:30:00'),
+(26, 26, 2026, 'A', 'Martes,Jueves', '07:00:00', '08:30:00'),
+(27, 27, 2026, 'A', 'Miércoles,Viernes', '07:00:00', '08:30:00'),
+(1, 28, 2026, 'B', 'Lunes,Miércoles', '10:30:00', '12:00:00'),
+(2, 29, 2026, 'B', 'Martes,Jueves', '10:30:00', '12:00:00'),
+(3, 30, 2026, 'B', 'Miércoles,Viernes', '10:30:00', '12:00:00');
 
--- -----------------------------------------------------------------------------
--- 2.16 INSERCIÓN DE CONCEPTOS DE PAGO (10 Registros)
--- -----------------------------------------------------------------------------
-INSERT INTO `conceptos_pago` (`id_concepto`, `codigo_concepto`, `nombre_concepto`, `descripcion`, `monto_base`, `es_periodico`) VALUES
-(1, 'CONC-MAT-01', 'Matrícula Ordinaria Anual', 'Derecho a matrícula institucional para el año académico correspondiente', 1200000.00, FALSE),
-(2, 'CONC-PEN-01', 'Pensión Mensual Escolar', 'Cuota mensual de enseñanza y servicios pedagógicos de febrero a noviembre', 650000.00, TRUE),
-(3, 'CONC-TRA-01', 'Servicio de Transporte Escolar', 'Ruta ida y vuelta en microbús escolar certificado para el área metropolitana', 280000.00, TRUE),
-(4, 'CONC-ALM-01', 'Almuerzo y Nutrición Escolar', 'Alimentación balanceada supervisada por nutricionista institucional', 320000.00, TRUE),
-(5, 'CONC-SEG-01', 'Póliza de Seguro Estudiantil', 'Seguro de accidentes escolares 24/7 con cobertura en clínicas de alta complejidad', 95000.00, FALSE),
-(6, 'CONC-ROB-01', 'Taller Extracurricular de Robótica', 'Material de ensamble, componentes electrónicos y acceso al laboratorio maker', 180000.00, TRUE),
-(7, 'CONC-DEP-01', 'Escuela Deportiva Formativa', 'Entrenamiento intensivo vespertino con uniforme de competencia oficial', 150000.00, TRUE),
-(8, 'CONC-SAL-01', 'Salida Pedagógica e Inmersión', 'Transporte especial, guía temática y entrada a reservas y centros científicos', 120000.00, FALSE),
-(9, 'CONC-CER-01', 'Certificado y Constancia Académica', 'Expedición de certificados oficiales de notas, constancias de estudio y paz y salvo', 25000.00, FALSE),
-(10, 'CONC-GRA-01', 'Derechos de Grado y Diploma', 'Acto solemne de graduación, diploma caligrafiado y carpeta conmemorativa', 350000.00, FALSE);
+-- 8. Inscripciones en Materias (45 registros)
+INSERT INTO inscripciones_materia (id_estudiante, id_materia, año_academico, periodo_academico, seccion, fecha_inscripcion, estado) VALUES
+(1, 1, 2026, 'I', 'A', '2026-01-20', 'Activa'),
+(2, 2, 2026, 'II', 'A', '2026-01-20', 'Activa'),
+(3, 3, 2026, 'III', 'A', '2026-01-20', 'Activa'),
+(4, 4, 2026, 'IV', 'A', '2026-01-20', 'Activa'),
+(5, 5, 2026, 'I', 'A', '2026-01-20', 'Activa'),
+(6, 6, 2026, 'II', 'A', '2026-01-20', 'Activa'),
+(7, 7, 2026, 'III', 'A', '2026-01-20', 'Activa'),
+(8, 8, 2026, 'IV', 'A', '2026-01-20', 'Activa'),
+(9, 9, 2026, 'I', 'A', '2026-01-20', 'Activa'),
+(10, 10, 2026, 'II', 'A', '2026-01-20', 'Activa'),
+(11, 11, 2026, 'III', 'A', '2026-01-20', 'Activa'),
+(12, 12, 2026, 'IV', 'A', '2026-01-20', 'Activa'),
+(13, 13, 2026, 'I', 'A', '2026-01-20', 'Activa'),
+(14, 14, 2026, 'II', 'A', '2026-01-20', 'Activa'),
+(15, 15, 2026, 'III', 'A', '2026-01-20', 'Activa'),
+(16, 16, 2026, 'IV', 'A', '2026-01-20', 'Activa'),
+(17, 17, 2026, 'I', 'A', '2026-01-20', 'Activa'),
+(18, 18, 2026, 'II', 'A', '2026-01-20', 'Activa'),
+(19, 19, 2026, 'III', 'A', '2026-01-20', 'Activa'),
+(20, 20, 2026, 'IV', 'A', '2026-01-20', 'Activa'),
+(21, 21, 2026, 'I', 'A', '2026-01-20', 'Activa'),
+(22, 22, 2026, 'II', 'A', '2026-01-20', 'Activa'),
+(23, 23, 2026, 'III', 'A', '2026-01-20', 'Activa'),
+(24, 24, 2026, 'IV', 'A', '2026-01-20', 'Activa'),
+(25, 25, 2026, 'I', 'A', '2026-01-20', 'Activa'),
+(26, 26, 2026, 'II', 'A', '2026-01-20', 'Activa'),
+(27, 27, 2026, 'III', 'A', '2026-01-20', 'Activa'),
+(28, 28, 2026, 'IV', 'A', '2026-01-20', 'Activa'),
+(29, 29, 2026, 'I', 'A', '2026-01-20', 'Activa'),
+(1, 30, 2026, 'II', 'A', '2026-01-20', 'Activa'),
+(2, 1, 2026, 'III', 'A', '2026-01-20', 'Activa'),
+(3, 2, 2026, 'IV', 'A', '2026-01-20', 'Activa'),
+(4, 3, 2026, 'I', 'A', '2026-01-20', 'Activa'),
+(5, 4, 2026, 'II', 'A', '2026-01-20', 'Activa'),
+(6, 5, 2026, 'III', 'A', '2026-01-20', 'Activa'),
+(7, 6, 2026, 'IV', 'A', '2026-01-20', 'Activa'),
+(8, 7, 2026, 'I', 'A', '2026-01-20', 'Activa'),
+(9, 8, 2026, 'II', 'A', '2026-01-20', 'Activa'),
+(10, 9, 2026, 'III', 'A', '2026-01-20', 'Activa'),
+(11, 10, 2026, 'IV', 'A', '2026-01-20', 'Activa'),
+(12, 11, 2026, 'I', 'A', '2026-01-20', 'Activa'),
+(13, 12, 2026, 'II', 'A', '2026-01-20', 'Activa'),
+(14, 13, 2026, 'III', 'A', '2026-01-20', 'Activa'),
+(15, 14, 2026, 'IV', 'A', '2026-01-20', 'Activa'),
+(16, 15, 2026, 'I', 'A', '2026-01-20', 'Activa');
 
--- -----------------------------------------------------------------------------
--- 2.17 INSERCIÓN DE PAGOS (32 Registros - Mínimo 30)
--- -----------------------------------------------------------------------------
-INSERT INTO `pagos` (`id_pago`, `numero_recibo`, `id_estudiante`, `id_concepto`, `año_academico`, `monto_pagado`, `metodo_pago`, `fecha_pago`, `estado_pago`, `descuento_aplicado`, `observaciones`) VALUES
-(1, 'REC-2026-0001', 1, 1, 2026, 1200000.00, 'Transferencia', '2026-01-15 09:30:00', 'Pagado', 0.00, 'Matrícula ordinaria Juan David Gómez'),
-(2, 'REC-2026-0002', 2, 1, 2026, 1200000.00, 'Tarjeta Crédito', '2026-01-16 11:15:00', 'Pagado', 0.00, 'Matrícula ordinaria Sofía Valentina Rodríguez'),
-(3, 'REC-2026-0003', 3, 1, 2026, 1350000.00, 'Efectivo', '2026-01-15 14:00:00', 'Pagado', 0.00, 'Matrícula Mateo Andrés Martínez'),
-(4, 'REC-2026-0004', 4, 1, 2026, 1150000.00, 'Transferencia', '2026-01-18 10:20:00', 'Pagado', 0.00, 'Matrícula Isabella Morales Peña'),
-(5, 'REC-2026-0005', 5, 1, 2026, 1450000.00, 'Tarjeta Débito', '2026-01-14 16:45:00', 'Pagado', 0.00, 'Matrícula Santiago Alejandro Díaz'),
-(6, 'REC-2026-0006', 6, 1, 2026, 1080000.00, 'Transferencia', '2026-01-15 08:30:00', 'Pagado', 120000.00, 'Matrícula Valentina Restrepo con 10% descuento por hermano'),
-(7, 'REC-2026-0007', 7, 1, 2026, 990000.00, 'Transferencia', '2026-01-15 08:35:00', 'Pagado', 110000.00, 'Matrícula Camilo Restrepo con 10% descuento por hermano'),
-(8, 'REC-2026-0008', 8, 1, 2026, 1200000.00, 'Cheque', '2026-01-17 12:00:00', 'Pagado', 0.00, 'Matrícula Mariana López Vargas - Cheque Banco de Bogotá'),
-(9, 'REC-2026-0009', 9, 1, 2026, 1150000.00, 'Transferencia', '2026-01-19 09:10:00', 'Pagado', 0.00, 'Matrícula Samuel Esteban Pérez'),
-(10, 'REC-2026-0010', 10, 1, 2026, 1350000.00, 'Tarjeta Débito', '2026-01-15 15:30:00', 'Pagado', 0.00, 'Matrícula Luciana Hernández Duque'),
-(11, 'REC-2026-0011', 1, 2, 2026, 650000.00, 'Transferencia', '2026-02-05 10:00:00', 'Pagado', 0.00, 'Pensión Febrero 2026 - Juan David Gómez'),
-(12, 'REC-2026-0012', 2, 2, 2026, 650000.00, 'Tarjeta Crédito', '2026-02-05 11:20:00', 'Pagado', 0.00, 'Pensión Febrero 2026 - Sofía Rodríguez'),
-(13, 'REC-2026-0013', 4, 2, 2026, 650000.00, 'Transferencia', '2026-02-06 09:40:00', 'Pagado', 0.00, 'Pensión Febrero 2026 - Isabella Morales'),
-(14, 'REC-2026-0014', 5, 2, 2026, 650000.00, 'Tarjeta Débito', '2026-02-05 16:10:00', 'Pagado', 0.00, 'Pensión Febrero 2026 - Santiago Díaz'),
-(15, 'REC-2026-0015', 6, 2, 2026, 585000.00, 'Transferencia', '2026-02-04 08:50:00', 'Pagado', 65000.00, 'Pensión Febrero 2026 - Valentina Restrepo (Descuento hermano)'),
-(16, 'REC-2026-0016', 7, 2, 2026, 585000.00, 'Transferencia', '2026-02-04 08:55:00', 'Pagado', 65000.00, 'Pensión Febrero 2026 - Camilo Restrepo (Descuento hermano)'),
-(17, 'REC-2026-0017', 8, 2, 2026, 650000.00, 'Efectivo', '2026-02-07 10:30:00', 'Pagado', 0.00, 'Pensión Febrero 2026 - Mariana López'),
-(18, 'REC-2026-0018', 9, 2, 2026, 650000.00, 'Transferencia', '2026-02-05 14:15:00', 'Pagado', 0.00, 'Pensión Febrero 2026 - Samuel Pérez'),
-(19, 'REC-2026-0019', 10, 2, 2026, 650000.00, 'Tarjeta Débito', '2026-02-06 17:00:00', 'Pagado', 0.00, 'Pensión Febrero 2026 - Luciana Hernández'),
-(20, 'REC-2026-0020', 1, 3, 2026, 280000.00, 'Transferencia', '2026-02-05 10:05:00', 'Pagado', 0.00, 'Transporte Escolar Febrero - Juan David Gómez'),
-(21, 'REC-2026-0021', 2, 4, 2026, 320000.00, 'Tarjeta Crédito', '2026-02-05 11:25:00', 'Pagado', 0.00, 'Almuerzo Escolar Febrero - Sofía Rodríguez'),
-(22, 'REC-2026-0022', 6, 3, 2026, 280000.00, 'Transferencia', '2026-02-04 09:00:00', 'Pagado', 0.00, 'Transporte Escolar Febrero - Valentina Restrepo'),
-(23, 'REC-2026-0023', 7, 3, 2026, 280000.00, 'Transferencia', '2026-02-04 09:05:00', 'Pagado', 0.00, 'Transporte Escolar Febrero - Camilo Restrepo'),
-(24, 'REC-2026-0024', 1, 6, 2026, 180000.00, 'Efectivo', '2026-02-08 11:00:00', 'Pagado', 0.00, 'Club de Robótica Mensualidad Febrero'),
-(25, 'REC-2026-0025', 2, 5, 2026, 95000.00, 'Transferencia', '2026-01-20 10:00:00', 'Pagado', 0.00, 'Póliza Seguro Estudiantil Anual 2026'),
-(26, 'REC-2026-0026', 3, 5, 2026, 95000.00, 'Efectivo', '2026-01-21 11:30:00', 'Pagado', 0.00, 'Póliza Seguro Estudiantil Anual 2026'),
-(27, 'REC-2026-0027', 4, 5, 2026, 95000.00, 'Transferencia', '2026-01-20 15:45:00', 'Pagado', 0.00, 'Póliza Seguro Estudiantil Anual 2026'),
-(28, 'REC-2026-0028', 5, 5, 2026, 95000.00, 'Tarjeta Débito', '2026-01-20 16:30:00', 'Pagado', 0.00, 'Póliza Seguro Estudiantil Anual 2026'),
-(29, 'REC-2026-0029', 6, 5, 2026, 95000.00, 'Transferencia', '2026-01-20 09:15:00', 'Pagado', 0.00, 'Póliza Seguro Estudiantil Anual 2026'),
-(30, 'REC-2026-0030', 7, 5, 2026, 95000.00, 'Transferencia', '2026-01-20 09:20:00', 'Pagado', 0.00, 'Póliza Seguro Estudiantil Anual 2026'),
-(31, 'REC-2026-0031', 30, 10, 2026, 350000.00, 'Transferencia', '2025-11-28 10:00:00', 'Pagado', 0.00, 'Derechos de grado de bachiller Lucas Guerrero Polo'),
-(32, 'REC-2026-0032', 11, 9, 2026, 25000.00, 'Efectivo', '2026-02-12 11:30:00', 'Pagado', 0.00, 'Certificado oficial de calificaciones para trámite de visa'),
-(33, NULL, 3, 2, 2026, 650000.00, 'Transferencia', '2026-02-05 08:00:00', 'Pendiente', 0.00, 'Pensión Febrero 2026 vencida - Más de 30 días en mora'),
-(34, NULL, 17, 2, 2026, 650000.00, 'Efectivo', '2026-02-05 08:00:00', 'Pendiente', 0.00, 'Pensión Febrero 2026 pendiente de recaudo');
+-- 9. Registros Académicos / Calificaciones (50 registros)
+INSERT INTO registros_academicos (id_estudiante, id_materia, id_profesor, año_academico, periodo_academico, valor_nota, observaciones, fecha_registro) VALUES
+(1, 1, 1, 2026, 'I', 3.5, 'Buen rendimiento', '2026-03-11'),
+(2, 2, 2, 2026, 'II', 4.2, 'Buen rendimiento', '2026-03-12'),
+(3, 3, 3, 2026, 'III', 4.9, 'Excelente desempeño', '2026-03-13'),
+(4, 4, 4, 2026, 'IV', 3.4, 'Requiere refuerzo', '2026-03-14'),
+(5, 5, 5, 2026, 'I', 4.1, 'Buen rendimiento', '2026-03-15'),
+(6, 6, 6, 2026, 'II', 4.8, 'Excelente desempeño', '2026-03-16'),
+(7, 7, 7, 2026, 'III', 3.3, 'Requiere refuerzo', '2026-03-17'),
+(8, 8, 8, 2026, 'IV', 4.0, 'Buen rendimiento', '2026-03-18'),
+(9, 9, 9, 2026, 'I', 4.7, 'Excelente desempeño', '2026-03-19'),
+(10, 10, 10, 2026, 'II', 3.2, 'Requiere refuerzo', '2026-03-20'),
+(11, 11, 11, 2026, 'III', 3.9, 'Buen rendimiento', '2026-03-21'),
+(12, 12, 12, 2026, 'IV', 4.6, 'Excelente desempeño', '2026-03-22'),
+(13, 13, 13, 2026, 'I', 3.1, 'Requiere refuerzo', '2026-03-23'),
+(14, 14, 14, 2026, 'II', 3.8, 'Buen rendimiento', '2026-03-24'),
+(15, 15, 15, 2026, 'III', 4.5, 'Excelente desempeño', '2026-03-25'),
+(16, 16, 16, 2026, 'IV', 3.0, 'Requiere refuerzo', '2026-03-26'),
+(17, 17, 17, 2026, 'I', 3.7, 'Buen rendimiento', '2026-03-27'),
+(18, 18, 18, 2026, 'II', 4.4, 'Buen rendimiento', '2026-03-10'),
+(19, 19, 19, 2026, 'III', 2.9, 'Requiere refuerzo', '2026-03-11'),
+(20, 20, 20, 2026, 'IV', 3.6, 'Buen rendimiento', '2026-03-12'),
+(21, 21, 21, 2026, 'I', 4.3, 'Buen rendimiento', '2026-03-13'),
+(22, 22, 22, 2026, 'II', 2.8, 'Requiere refuerzo', '2026-03-14'),
+(23, 23, 23, 2026, 'III', 3.5, 'Buen rendimiento', '2026-03-15'),
+(24, 24, 24, 2026, 'IV', 4.2, 'Buen rendimiento', '2026-03-16'),
+(25, 25, 25, 2026, 'I', 4.9, 'Excelente desempeño', '2026-03-17'),
+(26, 26, 26, 2026, 'II', 3.4, 'Requiere refuerzo', '2026-03-18'),
+(27, 27, 27, 2026, 'III', 4.1, 'Buen rendimiento', '2026-03-19'),
+(28, 1, 1, 2026, 'IV', 4.8, 'Excelente desempeño', '2026-03-20'),
+(1, 2, 2, 2026, 'I', 3.3, 'Requiere refuerzo', '2026-03-21'),
+(2, 3, 3, 2026, 'II', 4.0, 'Buen rendimiento', '2026-03-22'),
+(3, 4, 4, 2026, 'III', 4.7, 'Excelente desempeño', '2026-03-23'),
+(4, 5, 5, 2026, 'IV', 3.2, 'Requiere refuerzo', '2026-03-24'),
+(5, 6, 6, 2026, 'I', 3.9, 'Buen rendimiento', '2026-03-25'),
+(6, 7, 7, 2026, 'II', 4.6, 'Excelente desempeño', '2026-03-26'),
+(7, 8, 8, 2026, 'III', 3.1, 'Requiere refuerzo', '2026-03-27'),
+(8, 9, 9, 2026, 'IV', 3.8, 'Buen rendimiento', '2026-03-10'),
+(9, 10, 10, 2026, 'I', 4.5, 'Excelente desempeño', '2026-03-11'),
+(10, 11, 11, 2026, 'II', 3.0, 'Requiere refuerzo', '2026-03-12'),
+(1, 12, 12, 2025, 'IV', 3.7, 'Buen rendimiento', '2025-03-13'),
+(2, 13, 13, 2025, 'Final', 4.4, 'Buen rendimiento', '2025-03-14'),
+(3, 14, 14, 2025, 'I', 2.9, 'Requiere refuerzo', '2025-03-15'),
+(4, 15, 15, 2025, 'II', 3.6, 'Buen rendimiento', '2025-03-16'),
+(5, 16, 16, 2025, 'III', 4.3, 'Buen rendimiento', '2025-03-17'),
+(6, 17, 17, 2025, 'IV', 2.8, 'Requiere refuerzo', '2025-03-18'),
+(7, 18, 18, 2025, 'Final', 3.5, 'Buen rendimiento', '2025-03-19'),
+(8, 19, 19, 2025, 'I', 4.2, 'Buen rendimiento', '2025-03-20'),
+(9, 20, 20, 2025, 'II', 4.9, 'Excelente desempeño', '2025-03-21'),
+(10, 21, 21, 2025, 'III', 3.4, 'Requiere refuerzo', '2025-03-22'),
+(11, 22, 22, 2025, 'IV', 4.1, 'Buen rendimiento', '2025-03-23'),
+(12, 23, 23, 2025, 'Final', 4.8, 'Excelente desempeño', '2025-03-24');
 
--- -----------------------------------------------------------------------------
--- 2.18 INSERCIÓN DE FACTURAS ELECTRÓNICAS (32 Registros - Sincronizadas con Pagos)
--- -----------------------------------------------------------------------------
-INSERT INTO `facturas` (`id_factura`, `id_pago`, `numero_factura`, `cufe`, `nombre_archivo_pdf`, `ruta_archivo`, `fecha_emision`, `subtotal`, `iva`, `total`) VALUES
-(1, 1, 'FE-2026-000001', '08f5ef1b0903ece9fe119843f45ad18cfab045dcaf3fa32ccaa5abb61eddaea8', 'factura_000001.txt', 'invoices/factura_000001.txt', '2026-01-15 09:30:00', 1200000.00, 0.00, 1200000.00),
-(2, 2, 'FE-2026-000002', '4b3b3d94005af7a993700ae2be56c3fc88fd23739cf59027423a2167c0fc7753', 'factura_000002.txt', 'invoices/factura_000002.txt', '2026-01-16 11:15:00', 1200000.00, 0.00, 1200000.00),
-(3, 3, 'FE-2026-000003', '89fa295df602cc163d0867781c54d569ab38525539b94a624025551070122b2c', 'factura_000003.txt', 'invoices/factura_000003.txt', '2026-01-15 14:00:00', 1350000.00, 0.00, 1350000.00),
-(4, 4, 'FE-2026-000004', 'f40d7e269127c16cf7507f2edfe492731ecb5e5ae2d7638ab362062cf3e887ae', 'factura_000004.txt', 'invoices/factura_000004.txt', '2026-01-18 10:20:00', 1150000.00, 0.00, 1150000.00),
-(5, 5, 'FE-2026-000005', '57e1c11113b133d6b52858aef261150aa0d3ac7f4b22e0ac25fa1db88e73c3fb', 'factura_000005.txt', 'invoices/factura_000005.txt', '2026-01-14 16:45:00', 1450000.00, 0.00, 1450000.00),
-(6, 6, 'FE-2026-000006', '20efc5a996cccb6eb3f5cdbcbb008f2c250bd1bbd7df347db22698eaa6ca8fb4', 'factura_000006.txt', 'invoices/factura_000006.txt', '2026-01-15 08:30:00', 1080000.00, 0.00, 1080000.00),
-(7, 7, 'FE-2026-000007', '22d30a33d89f2c6d69ee81eafde689e210c62cf135a075c427acc10d5bf7eaf7', 'factura_000007.txt', 'invoices/factura_000007.txt', '2026-01-15 08:35:00', 990000.00, 0.00, 990000.00),
-(8, 8, 'FE-2026-000008', 'bc36f3fd571fdc4d27e79a72c3ec8c4e68d5d85528e3d3e108becaa36e5e693b', 'factura_000008.txt', 'invoices/factura_000008.txt', '2026-01-17 12:00:00', 1200000.00, 0.00, 1200000.00),
-(9, 9, 'FE-2026-000009', 'a572314acbf96febad38f1adda27a37b477565af9cb2e32f682725f5ddfc4437', 'factura_000009.txt', 'invoices/factura_000009.txt', '2026-01-19 09:10:00', 1150000.00, 0.00, 1150000.00),
-(10, 10, 'FE-2026-000010', '4f876f6c55ad0f8780ec6a2747c3ae8af2b4fd407cfa9097aa3fd4ce322e42ce', 'factura_000010.txt', 'invoices/factura_000010.txt', '2026-01-15 15:30:00', 1350000.00, 0.00, 1350000.00),
-(11, 11, 'FE-2026-000011', 'eb700647efbdaa04e5b4f369785fdb2dcd458a21f2650c7204d7609c4678e7f1', 'factura_000011.txt', 'invoices/factura_000011.txt', '2026-02-05 10:00:00', 650000.00, 0.00, 650000.00),
-(12, 12, 'FE-2026-000012', 'c8c6fba46550b94bc6855574c80adbb4238db4c825601a87e36d1c7aa16d39e6', 'factura_000012.txt', 'invoices/factura_000012.txt', '2026-02-05 11:20:00', 650000.00, 0.00, 650000.00),
-(13, 13, 'FE-2026-000013', '13de8a39a0c78fb913e7168645f2818d83e1be9c0f83ca6a2c762993eede5246', 'factura_000013.txt', 'invoices/factura_000013.txt', '2026-02-06 09:40:00', 650000.00, 0.00, 650000.00),
-(14, 14, 'FE-2026-000014', '4281e3ebd24cf788fe822d62e483ba9c087094d497fea32ac3048691b974af45', 'factura_000014.txt', 'invoices/factura_000014.txt', '2026-02-05 16:10:00', 650000.00, 0.00, 650000.00),
-(15, 15, 'FE-2026-000015', '9eda1b095e1917d1b8c586cdfc9b74c326301019f908bec378a69db1879b17c1', 'factura_000015.txt', 'invoices/factura_000015.txt', '2026-02-04 08:50:00', 585000.00, 0.00, 585000.00),
-(16, 16, 'FE-2026-000016', '1a8600d68086541f0de543a8a11f4528dd66376ebb890e55d4be70b698f27fbe', 'factura_000016.txt', 'invoices/factura_000016.txt', '2026-02-04 08:55:00', 585000.00, 0.00, 585000.00),
-(17, 17, 'FE-2026-000017', 'e98bbf72dc21e3b779a624dee22a24cee15bb1eaa7372e8576048266aff54e84', 'factura_000017.txt', 'invoices/factura_000017.txt', '2026-02-07 10:30:00', 650000.00, 0.00, 650000.00),
-(18, 18, 'FE-2026-000018', '2e033da7a89ba2ae158ecd9fe5c149776b3feefce74c0cb6b1315af2f60282ce', 'factura_000018.txt', 'invoices/factura_000018.txt', '2026-02-05 14:15:00', 650000.00, 0.00, 650000.00),
-(19, 19, 'FE-2026-000019', '1dd6c12828d60d2880873c43e6bdaed8a955b129f7f32efab99e2d9caba1a363', 'factura_000019.txt', 'invoices/factura_000019.txt', '2026-02-06 17:00:00', 650000.00, 0.00, 650000.00),
-(20, 20, 'FE-2026-000020', 'a249c92f789dd76581eaaccc1465b0ab42a890eeeb86992bcbb317b2a28b27de', 'factura_000020.txt', 'invoices/factura_000020.txt', '2026-02-05 10:05:00', 280000.00, 0.00, 280000.00),
-(21, 21, 'FE-2026-000021', 'e64dc45fd3e69f84f8717c433a951d2ae69c0a1d3dce36fff62af97d69e5772e', 'factura_000021.txt', 'invoices/factura_000021.txt', '2026-02-05 11:25:00', 320000.00, 0.00, 320000.00),
-(22, 22, 'FE-2026-000022', '21900bd1e5230c363aa321f15aa69f4c06264af046ed525a86d91e0ac6805ba4', 'factura_000022.txt', 'invoices/factura_000022.txt', '2026-02-04 09:00:00', 280000.00, 0.00, 280000.00),
-(23, 23, 'FE-2026-000023', '1dc0514485c7b7a43889b3c1c1f7ecac05af6e73cc2a207c0b0c46e20ae2d7ec', 'factura_000023.txt', 'invoices/factura_000023.txt', '2026-02-04 09:05:00', 280000.00, 0.00, 280000.00),
-(24, 24, 'FE-2026-000024', '97ef727537925617a75bae20c8d6905bdac027fe1b62bb6b581ff7ba434e43fd', 'factura_000024.txt', 'invoices/factura_000024.txt', '2026-02-08 11:00:00', 180000.00, 0.00, 180000.00),
-(25, 25, 'FE-2026-000025', '03327119cb914c75c4d520d6330321a81e92b3e08696aee9a49d39041890846a', 'factura_000025.txt', 'invoices/factura_000025.txt', '2026-01-20 10:00:00', 95000.00, 0.00, 95000.00),
-(26, 26, 'FE-2026-000026', 'af7671ff7c96d1cfb65b3fcfc50a38c326f6006ac632795b4d89713f81e7250c', 'factura_000026.txt', 'invoices/factura_000026.txt', '2026-01-21 11:30:00', 95000.00, 0.00, 95000.00),
-(27, 27, 'FE-2026-000027', '125ecad02d2afa8a8ce479e20252ce5aced028351d5814e2e1e370e3f92dfd81', 'factura_000027.txt', 'invoices/factura_000027.txt', '2026-01-20 15:45:00', 95000.00, 0.00, 95000.00),
-(28, 28, 'FE-2026-000028', 'e6b5fa0667322b8887fbbe02b81555b286c9c47768929aa7845d23200a999c21', 'factura_000028.txt', 'invoices/factura_000028.txt', '2026-01-20 16:30:00', 95000.00, 0.00, 95000.00),
-(29, 29, 'FE-2026-000029', '4e4434f7ca6195f9a0f71c0ca16c9ed2a3ef047a403d96f2473b1689c16d5e3b', 'factura_000029.txt', 'invoices/factura_000029.txt', '2026-01-20 09:15:00', 95000.00, 0.00, 95000.00),
-(30, 30, 'FE-2026-000030', '9b113d8fd26a9c7429378d98958caf73c65916f7e6820d66ea01449d91d0c02a', 'factura_000030.txt', 'invoices/factura_000030.txt', '2026-01-20 09:20:00', 95000.00, 0.00, 95000.00),
-(31, 31, 'FE-2026-000031', '78fbaaeef65eede30400e1815714e1477ea0809949a459fd8d4982ead18b2fc3', 'factura_000031.txt', 'invoices/factura_000031.txt', '2025-11-28 10:00:00', 350000.00, 0.00, 350000.00),
-(32, 32, 'FE-2026-000032', '8295cebf35989b0340431c8c7c388c0b04f87fcfead7e04769f052867ccc58e9', 'factura_000032.txt', 'invoices/factura_000032.txt', '2026-02-12 11:30:00', 25000.00, 0.00, 25000.00),
-(33, 33, 'FE-2026-000033', 'fc4e407b078a1a35d60f3cba3c600ed0d3f089e0660ef4db300eef30789a3041', 'factura_000033.txt', 'invoices/factura_000033.txt', '2026-02-05 08:00:00', 650000.00, 0.00, 650000.00),
-(34, 34, 'FE-2026-000034', 'fd3791a80212dd7d775a097c0d0fae252b237e3168b8f01de5aaec7cb1953c99', 'factura_000034.txt', 'invoices/factura_000034.txt', '2026-02-05 08:00:00', 650000.00, 0.00, 650000.00);
+-- 10. Asistencias (45 registros; incluye casos con >3 ausencias semanales)
+INSERT INTO asistencias (id_estudiante, id_materia, fecha_asistencia, estado_asistencia, observaciones, registrado_por) VALUES
+(1, 1, '2026-11-02', 'Ausente', 'Inasistencia sin excusa', 1),
+(1, 2, '2026-11-03', 'Ausente', 'Inasistencia sin excusa', 2),
+(1, 3, '2026-11-04', 'Ausente', 'Inasistencia sin excusa', 3),
+(1, 4, '2026-11-05', 'Ausente', 'Inasistencia sin excusa', 4),
+(3, 1, '2026-11-02', 'Ausente', 'Ausencia reportada', 1),
+(3, 2, '2026-11-03', 'Ausente', 'Ausencia reportada', 2),
+(3, 3, '2026-11-04', 'Ausente', 'Ausencia reportada', 3),
+(3, 5, '2026-11-05', 'Ausente', 'Ausencia reportada', 5),
+(5, 1, '2026-10-02', 'Presente', 'Control diario', 1),
+(6, 2, '2026-10-03', 'Presente', 'Control diario', 2),
+(7, 3, '2026-10-04', 'Tardanza', 'Control diario', 3),
+(8, 4, '2026-10-05', 'Excusa Médica', 'Control diario', 4),
+(9, 5, '2026-10-06', 'Ausente', 'Control diario', 5),
+(10, 6, '2026-10-07', 'Presente', 'Control diario', 6),
+(11, 7, '2026-10-08', 'Presente', 'Control diario', 7),
+(12, 8, '2026-10-09', 'Presente', 'Control diario', 8),
+(13, 9, '2026-10-10', 'Tardanza', 'Control diario', 9),
+(14, 10, '2026-10-11', 'Excusa Médica', 'Control diario', 10),
+(15, 11, '2026-10-12', 'Ausente', 'Control diario', 11),
+(16, 12, '2026-10-13', 'Presente', 'Control diario', 12),
+(17, 13, '2026-10-14', 'Presente', 'Control diario', 13),
+(18, 14, '2026-10-15', 'Presente', 'Control diario', 14),
+(19, 15, '2026-10-16', 'Tardanza', 'Control diario', 15),
+(20, 16, '2026-10-17', 'Excusa Médica', 'Control diario', 16),
+(21, 17, '2026-10-18', 'Ausente', 'Control diario', 17),
+(22, 18, '2026-10-19', 'Presente', 'Control diario', 18),
+(23, 19, '2026-10-20', 'Presente', 'Control diario', 19),
+(24, 20, '2026-10-21', 'Presente', 'Control diario', 20),
+(25, 1, '2026-10-22', 'Tardanza', 'Control diario', 1),
+(26, 2, '2026-10-23', 'Excusa Médica', 'Control diario', 2),
+(27, 3, '2026-10-24', 'Ausente', 'Control diario', 3),
+(28, 4, '2026-10-25', 'Presente', 'Control diario', 4),
+(1, 5, '2026-10-01', 'Presente', 'Control diario', 5),
+(2, 6, '2026-10-02', 'Presente', 'Control diario', 6),
+(3, 7, '2026-10-03', 'Tardanza', 'Control diario', 7),
+(4, 8, '2026-10-04', 'Excusa Médica', 'Control diario', 8),
+(5, 9, '2026-10-05', 'Ausente', 'Control diario', 9),
+(6, 10, '2026-10-06', 'Presente', 'Control diario', 10),
+(7, 11, '2026-10-07', 'Presente', 'Control diario', 11),
+(8, 12, '2026-10-08', 'Presente', 'Control diario', 12),
+(9, 13, '2026-10-09', 'Tardanza', 'Control diario', 13),
+(10, 14, '2026-10-10', 'Excusa Médica', 'Control diario', 14),
+(11, 15, '2026-10-11', 'Ausente', 'Control diario', 15),
+(12, 16, '2026-10-12', 'Presente', 'Control diario', 16),
+(13, 17, '2026-10-13', 'Presente', 'Control diario', 17);
 
--- -----------------------------------------------------------------------------
--- 2.19 INSERCIÓN DE CATEGORÍAS DE RECURSOS (8 Registros)
--- -----------------------------------------------------------------------------
-INSERT INTO `categorias_recurso` (`id_categoria`, `nombre_categoria`, `descripcion`) VALUES
-(1, 'Libros y Literatura', 'Obras clásicas, enciclopedias, diccionarios y colecciones bibliográficas'),
-(2, 'Equipos de Cómputo y Tecnología', 'Portátiles, tablets, proyectores, pantallas y dispositivos de cálculo'),
-(3, 'Laboratorio de Ciencias Naturales', 'Microscopios, balanzas analíticas, kits de química y tubos de ensayo'),
-(4, 'Audiovisuales y Multimedia', 'Cámaras fotográficas, micrófonos inalámbricos, grabadoras y parlantes'),
-(5, 'Robótica y Maker', 'Kits Lego Spike, tarjetas Arduino, sensores ultrasónicos y servomotores'),
-(6, 'Deportes y Recreación', 'Balones oficiales, cronómetros digitales, conos, petos y colchonetas'),
-(7, 'Instrumentos Musicales', 'Guitarras acústicas, teclados electrónicos, flautas y percusión'),
-(8, 'Material Didáctico y Juegos de Mesa', 'Tableros de ajedrez reglamentarios, maquetas anatómicas y mapas murales');
+-- 11. Clubes Extracurriculares (30 registros)
+INSERT INTO clubes (nombre_club, descripcion, id_profesor_supervisor, capacidad_maxima, horario_reunion, esta_activo) VALUES
+('Club de Robótica', 'Actividades formativas y prácticas de robótica', 1, 21, 'Jueves 3:00-5:00 PM', TRUE),
+('Club de Ciencias', 'Actividades formativas y prácticas de ciencias', 2, 22, 'Viernes 2:00-4:00 PM', TRUE),
+('Club de Debate', 'Actividades formativas y prácticas de debate', 3, 23, 'Miércoles 3:30-5:00 PM', TRUE),
+('Club de Ajedrez', 'Actividades formativas y prácticas de ajedrez', 4, 24, 'Martes 3:00-5:00 PM', TRUE),
+('Club de Teatro', 'Actividades formativas y prácticas de teatro', 5, 25, 'Jueves 3:00-5:00 PM', TRUE),
+('Club de Música', 'Actividades formativas y prácticas de música', 6, 26, 'Viernes 2:00-4:00 PM', TRUE),
+('Club de Fútbol', 'Actividades formativas y prácticas de fútbol', 7, 27, 'Miércoles 3:30-5:00 PM', TRUE),
+('Club de Baloncesto', 'Actividades formativas y prácticas de baloncesto', 8, 28, 'Martes 3:00-5:00 PM', TRUE),
+('Club de Voleibol', 'Actividades formativas y prácticas de voleibol', 9, 29, 'Jueves 3:00-5:00 PM', TRUE),
+('Club de Programación', 'Actividades formativas y prácticas de programación', 10, 30, 'Viernes 2:00-4:00 PM', TRUE),
+('Club de Astronomía', 'Actividades formativas y prácticas de astronomía', 11, 31, 'Miércoles 3:30-5:00 PM', TRUE),
+('Club de Ecología', 'Actividades formativas y prácticas de ecología', 12, 32, 'Martes 3:00-5:00 PM', TRUE),
+('Club de Fotografía', 'Actividades formativas y prácticas de fotografía', 13, 33, 'Jueves 3:00-5:00 PM', TRUE),
+('Club de Pintura', 'Actividades formativas y prácticas de pintura', 14, 34, 'Viernes 2:00-4:00 PM', TRUE),
+('Club de Literatura', 'Actividades formativas y prácticas de literatura', 15, 20, 'Miércoles 3:30-5:00 PM', TRUE),
+('Club de Natación', 'Actividades formativas y prácticas de natación', 16, 21, 'Martes 3:00-5:00 PM', TRUE),
+('Club de Atletismo', 'Actividades formativas y prácticas de atletismo', 17, 22, 'Jueves 3:00-5:00 PM', TRUE),
+('Club de Danza', 'Actividades formativas y prácticas de danza', 18, 23, 'Viernes 2:00-4:00 PM', TRUE),
+('Club de Oratoria', 'Actividades formativas y prácticas de oratoria', 19, 24, 'Miércoles 3:30-5:00 PM', TRUE),
+('Club de Inglés Conversacional', 'Actividades formativas y prácticas de inglés conversacional', 20, 25, 'Martes 3:00-5:00 PM', TRUE),
+('Club de Matemáticas Olímpicas', 'Actividades formativas y prácticas de matemáticas olímpicas', 21, 26, 'Jueves 3:00-5:00 PM', TRUE),
+('Club de Química Experimental', 'Actividades formativas y prácticas de química experimental', 22, 27, 'Viernes 2:00-4:00 PM', TRUE),
+('Club de Cine Foro', 'Actividades formativas y prácticas de cine foro', 23, 28, 'Miércoles 3:30-5:00 PM', TRUE),
+('Club de Periodismo Escolar', 'Actividades formativas y prácticas de periodismo escolar', 24, 29, 'Martes 3:00-5:00 PM', TRUE),
+('Club de Cocina Saludable', 'Actividades formativas y prácticas de cocina saludable', 25, 30, 'Jueves 3:00-5:00 PM', TRUE),
+('Club de Jardinería', 'Actividades formativas y prácticas de jardinería', 26, 31, 'Viernes 2:00-4:00 PM', TRUE),
+('Club de Ciclismo', 'Actividades formativas y prácticas de ciclismo', 27, 32, 'Miércoles 3:30-5:00 PM', TRUE),
+('Club de Tenis de Mesa', 'Actividades formativas y prácticas de tenis de mesa', 1, 33, 'Martes 3:00-5:00 PM', TRUE),
+('Club de Banda Sinfónica', 'Actividades formativas y prácticas de banda sinfónica', 2, 34, 'Jueves 3:00-5:00 PM', FALSE),
+('Club de Voluntariado', 'Actividades formativas y prácticas de voluntariado', 3, 20, 'Viernes 2:00-4:00 PM', FALSE);
 
--- -----------------------------------------------------------------------------
--- 2.20 INSERCIÓN DE RECURSOS (32 Registros - Mínimo 30)
--- -----------------------------------------------------------------------------
-INSERT INTO `recursos` (`id_recurso`, `codigo_unico`, `nombre_recurso`, `id_categoria`, `ubicacion_fisica`, `estado_recurso`, `fecha_adquisicion`) VALUES
-(1, 'LIB-001', 'Cien Años de Soledad - Gabriel García Márquez (Edición Conmemorativa)', 1, 'Biblioteca - Pasillo A Estante 3', 'Disponible', '2023-01-15'),
-(2, 'LIB-002', 'Don Quijote de la Mancha - Miguel de Cervantes Saavedra', 1, 'Biblioteca - Pasillo A Estante 4', 'Disponible', '2023-01-15'),
-(3, 'LIB-003', 'Principios Matemáticos de la Filosofía Natural - Isaac Newton', 1, 'Biblioteca - Pasillo B Estante 1', 'Disponible', '2023-02-10'),
-(4, 'LIB-004', 'Biología Celular y Molecular - Gerald Karp (7ma Edición)', 1, 'Biblioteca - Pasillo B Estante 5', 'Prestado', '2023-03-12'),
-(5, 'LIB-005', 'Química General - Raymond Chang (10ma Edición)', 1, 'Biblioteca - Pasillo B Estante 6', 'Disponible', '2023-03-12'),
-(6, 'LIB-006', 'Física Universitaria Vol 1 - Sears & Zemansky (14va Edición)', 1, 'Biblioteca - Pasillo C Estante 2', 'Prestado', '2023-04-05'),
-(7, 'LIB-007', 'Cálculo de una Variable - James Stewart (8va Edición)', 1, 'Biblioteca - Pasillo C Estante 3', 'Disponible', '2023-04-05'),
-(8, 'LIB-008', 'Breve Historia del Tiempo - Stephen Hawking', 1, 'Biblioteca - Pasillo A Estante 5', 'Disponible', '2023-05-18'),
-(9, 'LIB-009', 'Atlas Geográfico Universal Ilustrado y de Colombia', 1, 'Biblioteca - Pasillo D Estante 1', 'Disponible', '2023-01-20'),
-(10, 'LIB-010', 'Oxford Advanced Learner Dictionary (Hardcover English-Spanish)', 1, 'Biblioteca - Pasillo D Estante 3', 'Disponible', '2023-01-20'),
-(11, 'CMP-001', 'Portátil Dell Latitude 3420 Core i5 16GB RAM 512GB SSD #01', 2, 'Sala de Cómputo Móvil - Carrito 1', 'Prestado', '2024-02-15'),
-(12, 'CMP-002', 'Portátil Dell Latitude 3420 Core i5 16GB RAM 512GB SSD #02', 2, 'Sala de Cómputo Móvil - Carrito 1', 'Disponible', '2024-02-15'),
-(13, 'CMP-003', 'Portátil Dell Latitude 3420 Core i5 16GB RAM 512GB SSD #03', 2, 'Sala de Cómputo Móvil - Carrito 1', 'En Mantenimiento', '2024-02-15'),
-(14, 'CMP-004', 'Tableta Gráfica Wacom Intuos Pro Medium #01', 2, 'Laboratorio Maker - Gabinete 3', 'Disponible', '2024-03-10'),
-(15, 'CMP-005', 'Tableta Gráfica Wacom Intuos Pro Medium #02', 2, 'Laboratorio Maker - Gabinete 3', 'Prestado', '2024-03-10'),
-(16, 'LAB-001', 'Microscopio Óptico Binocular Olympus CX23 #01', 3, 'Laboratorio de Biología - Armario A', 'Disponible', '2023-06-20'),
-(17, 'LAB-002', 'Microscopio Óptico Binocular Olympus CX23 #02', 3, 'Laboratorio de Biología - Armario A', 'Prestado', '2023-06-20'),
-(18, 'LAB-003', 'Balanza Analítica Digital de Precisión Ohaus Pioneer 0.001g', 3, 'Laboratorio de Química - Mesa Central', 'Disponible', '2023-07-15'),
-(19, 'LAB-004', 'Centrífuga de Mesa para Tubos Clínicos 4000 RPM', 3, 'Laboratorio de Química - Armario B', 'Disponible', '2023-08-01'),
-(20, 'LAB-005', 'Sensor Digital Vernier LabQuest para Medición de pH y Temperatura', 3, 'Laboratorio de Ciencias - Vitrina 2', 'Prestado', '2024-01-25'),
-(21, 'LAB-006', 'Kit de Dinámica y Sensores de Fuerza y Movimiento Pasco', 3, 'Laboratorio de Física - Estante F1', 'Disponible', '2024-01-25'),
-(22, 'AUD-001', 'Videoproyector Láser Epson PowerLite FH52 Full HD 4000 Lúmenes', 4, 'Almacén Audiovisual - Casillero 05', 'Prestado', '2023-09-10'),
-(23, 'AUD-002', 'Pantalla Portátil Trípode para Proyección 100 Pulgadas', 4, 'Almacén Audiovisual - Zona Trípodes', 'Disponible', '2023-09-10'),
-(24, 'AUD-003', 'Sistema de Micrófonos Inalámbricos Shure BLX288/PG58 Dual', 4, 'Almacén Audiovisual - Caja Fuerte 2', 'Disponible', '2023-10-15'),
-(25, 'AUD-004', 'Cámara Fotográfica Réflex Canon EOS Rebel T7 con Lente 18-55mm', 4, 'Estudio Multimedia - Gabinete Foto', 'Prestado', '2024-02-01'),
-(26, 'AUD-005', 'Grabadora de Voz Digital Zoom H4n Pro 4 Pistas', 4, 'Estudio Multimedia - Gaveta 4', 'Disponible', '2024-02-01'),
-(27, 'ROB-001', 'Kit Educativo Robótica Lego Spike Prime Set Principal #01', 5, 'Laboratorio Maker - Estantería R1', 'Prestado', '2024-01-15'),
-(28, 'ROB-002', 'Kit Educativo Robótica Lego Spike Prime Set Principal #02', 5, 'Laboratorio Maker - Estantería R1', 'Disponible', '2024-01-15'),
-(29, 'ROB-003', 'Set Didáctico Arduino Uno R4 WiFi con Sensores y Actuadores #01', 5, 'Laboratorio Maker - Maletín Maker', 'Disponible', '2024-02-18'),
-(30, 'DEP-001', 'Cronómetro Digital Profesional Seiko S056 Resistente al Agua #01', 6, 'Bodega de Deportes - Casillero D1', 'Disponible', '2023-05-10'),
-(31, 'DEP-002', 'Juego de 5 Balones de Baloncesto Mikasa Molten GG7X Oficiales', 6, 'Bodega de Deportes - Canasta B1', 'Disponible', '2023-05-10'),
-(32, 'DEP-003', 'Set de Cronometraje y Silbatos Fox 40 Classic para Árbitros', 6, 'Bodega de Deportes - Casillero D2', 'Dado de Baja', '2021-03-15');
+-- 12. Membresías en Clubes (35 registros)
+INSERT INTO membresias_club (id_estudiante, id_club, fecha_ingreso, estado_membresia, fecha_retiro, motivo_retiro) VALUES
+(1, 1, '2026-02-02', 'Activa', NULL, NULL),
+(2, 2, '2026-02-03', 'Activa', NULL, NULL),
+(3, 3, '2026-02-04', 'Activa', NULL, NULL),
+(4, 4, '2026-02-05', 'Activa', NULL, NULL),
+(5, 5, '2026-02-06', 'Activa', NULL, NULL),
+(6, 6, '2026-02-07', 'Activa', NULL, NULL),
+(7, 7, '2026-02-08', 'Activa', NULL, NULL),
+(8, 8, '2026-02-09', 'Activa', NULL, NULL),
+(9, 9, '2026-02-10', 'Activa', NULL, NULL),
+(10, 10, '2026-02-11', 'Retirada', '2026-08-15', 'Cambio de horario'),
+(11, 11, '2026-02-12', 'Activa', NULL, NULL),
+(12, 12, '2026-02-13', 'Activa', NULL, NULL),
+(13, 13, '2026-02-14', 'Activa', NULL, NULL),
+(14, 14, '2026-02-15', 'Activa', NULL, NULL),
+(15, 15, '2026-02-16', 'Activa', NULL, NULL),
+(16, 16, '2026-02-17', 'Activa', NULL, NULL),
+(17, 17, '2026-02-18', 'Activa', NULL, NULL),
+(18, 18, '2026-02-19', 'Activa', NULL, NULL),
+(19, 19, '2026-02-20', 'Activa', NULL, NULL),
+(20, 20, '2026-02-01', 'Retirada', '2026-08-15', 'Cambio de horario'),
+(21, 21, '2026-02-02', 'Activa', NULL, NULL),
+(22, 22, '2026-02-03', 'Activa', NULL, NULL),
+(23, 23, '2026-02-04', 'Activa', NULL, NULL),
+(24, 24, '2026-02-05', 'Activa', NULL, NULL),
+(25, 25, '2026-02-06', 'Activa', NULL, NULL),
+(26, 1, '2026-02-07', 'Activa', NULL, NULL),
+(27, 2, '2026-02-08', 'Activa', NULL, NULL),
+(28, 3, '2026-02-09', 'Activa', NULL, NULL),
+(29, 4, '2026-02-10', 'Activa', NULL, NULL),
+(1, 5, '2026-02-11', 'Retirada', '2026-08-15', 'Cambio de horario'),
+(2, 6, '2026-02-12', 'Activa', NULL, NULL),
+(3, 7, '2026-02-13', 'Activa', NULL, NULL),
+(4, 8, '2026-02-14', 'Activa', NULL, NULL),
+(5, 9, '2026-02-15', 'Activa', NULL, NULL),
+(6, 10, '2026-02-16', 'Activa', NULL, NULL);
 
--- -----------------------------------------------------------------------------
--- 2.21 INSERCIÓN DE PRÉSTAMOS A ESTUDIANTES (18 Registros)
--- -----------------------------------------------------------------------------
-INSERT INTO `prestamos_estudiante` (`id_prestamo_estudiante`, `id_recurso`, `id_estudiante`, `fecha_prestamo`, `fecha_devolucion_programada`, `fecha_devolucion_real`, `estado_prestamo`, `observaciones`) VALUES
-(1, 1, 1, '2026-02-05', '2026-02-12', '2026-02-11', 'Devuelto', 'Entregado en perfecto estado'),
-(2, 4, 1, '2026-02-20', '2026-02-27', NULL, 'Vencido', 'Estudiante no devolvió el libro en la fecha pactada'),
-(3, 11, 1, '2026-03-01', '2026-03-08', NULL, 'Activo', 'Préstamo para proyecto de informática'),
-(4, 2, 2, '2026-02-10', '2026-02-17', '2026-02-16', 'Devuelto', 'Devuelto a tiempo'),
-(5, 15, 2, '2026-03-02', '2026-03-09', NULL, 'Activo', 'Uso en taller de dibujo digital'),
-(6, 6, 3, '2026-02-15', '2026-02-22', NULL, 'Vencido', 'Mora de más de dos semanas en biblioteca'),
-(7, 3, 4, '2026-02-01', '2026-02-08', '2026-02-07', 'Devuelto', 'Devuelto sin novedad'),
-(8, 27, 5, '2026-03-01', '2026-03-08', NULL, 'Activo', 'Kit de robótica para olimpiada'),
-(9, 5, 6, '2026-02-12', '2026-02-19', '2026-02-18', 'Devuelto', 'Sin observaciones'),
-(10, 7, 7, '2026-02-14', '2026-02-21', '2026-02-21', 'Devuelto', 'Devuelto el último día'),
-(11, 8, 8, '2026-02-18', '2026-02-25', '2026-02-24', 'Devuelto', 'Excelente estado'),
-(12, 9, 9, '2026-02-11', '2026-02-18', '2026-02-17', 'Devuelto', 'Uso en geografía'),
-(13, 10, 10, '2026-02-10', '2026-02-17', '2026-02-16', 'Devuelto', 'Consulta de inglés'),
-(14, 12, 11, '2026-02-22', '2026-03-01', '2026-02-28', 'Devuelto', 'Portátil sin rayones'),
-(15, 14, 12, '2026-02-15', '2026-02-22', '2026-02-20', 'Devuelto', 'Tableta devuelta con lápiz óptico'),
-(16, 28, 13, '2026-02-10', '2026-02-17', '2026-02-16', 'Devuelto', 'Lego Spike completo'),
-(17, 29, 14, '2026-02-18', '2026-02-25', '2026-02-24', 'Devuelto', 'Kit Arduino revisado'),
-(18, 30, 15, '2026-02-12', '2026-02-19', '2026-02-18', 'Devuelto', 'Cronómetro entregado con pila funcional');
+-- 13. Eventos Institucionales (12 registros)
+INSERT INTO eventos (nombre_evento, descripcion, tipo_evento, fecha_evento, lugar, tiene_competencia, id_organizador, esta_activo) VALUES
+('Feria Anual de Ciencias', 'Exposición de proyectos científicos y tecnológicos', 'Científico', '2026-05-15', 'Auditorio Principal', TRUE, 1, TRUE),
+('Olimpiadas Matemáticas', 'Competencia intercursos de resolución lógica', 'Académico', '2026-04-20', 'Coliseo Cubierto', TRUE, 2, TRUE),
+('Festival Cultural de Primavera', 'Muestras de danza, teatro y música', 'Cultural', '2026-06-10', 'Teatro Escolar', FALSE, 7, TRUE),
+('Copa Deportiva Little Horizons', 'Torneo intercolegiado de fútbol y baloncesto', 'Deportivo', '2026-08-22', 'Cancha Múltiple', TRUE, 8, TRUE),
+('Día de la Familia', 'Integración de padres, acudientes y estudiantes', 'Social', '2026-09-12', 'Campus Central', FALSE, 5, TRUE),
+('Hackathon Escolar', 'Desarrollo de aplicaciones educativas en equipo', 'Científico', '2026-10-08', 'Sala de Sistemas 1', TRUE, 6, TRUE),
+('Concurso de Oratoria Bilingüe', 'Discursos en español e inglés', 'Académico', '2026-07-18', 'Auditorio Menor', TRUE, 3, TRUE),
+('Exhibición de Arte Joven', 'Galería de pintura y fotografía estudiantil', 'Cultural', '2026-10-25', 'Hall Cultural', FALSE, 7, TRUE),
+('Carrera Atlética 5K', 'Jornada deportiva de integración', 'Deportivo', '2026-11-05', 'Pista Atlética', TRUE, 8, TRUE),
+('Encuentro de Egresados', 'Convivencia anual de comunidad educativa', 'Social', '2026-11-20', 'Salón Múltiple', FALSE, 10, TRUE),
+('Simposio Ambiental', 'Charlas sobre sostenibilidad escolar', 'Científico', '2026-09-28', 'Biblioteca Central', FALSE, 4, TRUE),
+('Torneo de Ajedrez', 'Competencia suiza de ajedrez escolar', 'Deportivo', '2026-08-05', 'Sala de Juegos', TRUE, 9, TRUE);
 
--- -----------------------------------------------------------------------------
--- 2.22 INSERCIÓN DE PRÉSTAMOS A PROFESORES (15 Registros)
--- -----------------------------------------------------------------------------
-INSERT INTO `prestamos_profesor` (`id_prestamo_profesor`, `id_recurso`, `id_profesor`, `fecha_prestamo`, `fecha_devolucion_programada`, `fecha_devolucion_real`, `estado_prestamo`, `observaciones`) VALUES
-(1, 22, 1, '2026-03-01', '2026-03-08', NULL, 'Activo', 'Proyector para clase magistral de trigonometría'),
-(2, 17, 5, '2026-03-01', '2026-03-08', NULL, 'Activo', 'Microscopio para práctica de genética celular'),
-(3, 20, 4, '2026-02-15', '2026-02-22', NULL, 'Vencido', 'Sensor de pH pendiente de devolución en laboratorio'),
-(4, 25, 29, '2026-03-02', '2026-03-09', NULL, 'Activo', 'Cámara para cobertura fotográfica de eventos'),
-(5, 23, 2, '2026-02-10', '2026-02-17', '2026-02-16', 'Devuelto', 'Pantalla de proyección devuelta en perfecto estado'),
-(6, 24, 11, '2026-02-14', '2026-02-21', '2026-02-20', 'Devuelto', 'Micrófonos inalámbricos probados para coro'),
-(7, 26, 28, '2026-02-18', '2026-02-25', '2026-02-24', 'Devuelto', 'Grabadora Zoom para entrevistas del periódico'),
-(8, 16, 5, '2026-02-01', '2026-02-08', '2026-02-07', 'Devuelto', 'Microscopio binocular usado en clase de 9°'),
-(9, 18, 4, '2026-02-05', '2026-02-12', '2026-02-11', 'Devuelto', 'Balanza analítica calibrada'),
-(10, 19, 21, '2026-02-12', '2026-02-19', '2026-02-18', 'Devuelto', 'Centrífuga devuelta en químicas'),
-(11, 21, 3, '2026-02-15', '2026-02-22', '2026-02-21', 'Devuelto', 'Kit de dinámica física sin rayaduras'),
-(12, 31, 12, '2026-02-02', '2026-02-09', '2026-02-08', 'Devuelto', 'Balones de baloncesto inflados y completos'),
-(13, 14, 10, '2026-02-08', '2026-02-15', '2026-02-14', 'Devuelto', 'Tableta Wacom para diseño'),
-(14, 27, 14, '2026-02-10', '2026-02-17', '2026-02-16', 'Devuelto', 'Kit Spike Prime desarmado y completo'),
-(15, 29, 18, '2026-02-20', '2026-02-27', '2026-02-26', 'Devuelto', 'Arduino Uno R4 con cable USB');
+-- 14. Participantes en Eventos (30 registros)
+INSERT INTO participantes_evento (id_evento, id_estudiante, rol_participacion, posicion_obtenida, observaciones) VALUES
+(1, 1, 'Competidor', '2do Lugar', 'Participación registrada'),
+(2, 2, 'Competidor', '3er Lugar', 'Participación registrada'),
+(3, 3, 'Participante', 'Participante', 'Participación registrada'),
+(4, 4, 'Competidor', '1er Lugar', 'Participación registrada'),
+(5, 5, 'Participante', 'Participante', 'Participación registrada'),
+(6, 6, 'Competidor', '3er Lugar', 'Participación registrada'),
+(7, 7, 'Competidor', 'Participante', 'Participación registrada'),
+(8, 8, 'Participante', 'Participante', 'Participación registrada'),
+(9, 9, 'Competidor', '2do Lugar', 'Participación registrada'),
+(10, 10, 'Participante', 'Participante', 'Participación registrada'),
+(11, 11, 'Participante', 'Participante', 'Participación registrada'),
+(12, 12, 'Competidor', '1er Lugar', 'Participación registrada'),
+(1, 13, 'Competidor', '2do Lugar', 'Participación registrada'),
+(2, 14, 'Competidor', '3er Lugar', 'Participación registrada'),
+(3, 15, 'Participante', 'Participante', 'Participación registrada'),
+(4, 16, 'Competidor', '1er Lugar', 'Participación registrada'),
+(5, 17, 'Participante', 'Participante', 'Participación registrada'),
+(6, 18, 'Competidor', '3er Lugar', 'Participación registrada'),
+(7, 19, 'Competidor', 'Participante', 'Participación registrada'),
+(8, 20, 'Participante', 'Participante', 'Participación registrada'),
+(9, 21, 'Competidor', '2do Lugar', 'Participación registrada'),
+(10, 22, 'Participante', 'Participante', 'Participación registrada'),
+(11, 23, 'Participante', 'Participante', 'Participación registrada'),
+(12, 24, 'Competidor', '1er Lugar', 'Participación registrada'),
+(1, 25, 'Competidor', '2do Lugar', 'Participación registrada'),
+(2, 26, 'Competidor', '3er Lugar', 'Participación registrada'),
+(3, 27, 'Participante', 'Participante', 'Participación registrada'),
+(4, 28, 'Competidor', '1er Lugar', 'Participación registrada'),
+(5, 1, 'Participante', 'Participante', 'Participación registrada'),
+(6, 2, 'Competidor', '3er Lugar', 'Participación registrada');
 
--- =============================================================================
--- FIN DEL SCRIPT: docs/database.sql
--- ERP Little Horizons - Inicialización Exitosa
--- =============================================================================
+-- 15. Pagos (35 registros: pagados y pendientes > 30 días para reporte de mora)
+INSERT INTO pagos (id_estudiante, id_acudiente, id_concepto, monto_pagado, descuento_aplicado, estado_pago, fecha_pago, metodo_pago, numero_recibo, año_academico, periodo_academico, notas) VALUES
+(1, 1, 1, 500000.00, 0.00, 'Pagado', '2026-02-06', 'Transferencia', 'REC-2026-0001', 2026, 'II', 'Pago confirmado en tesorería'),
+(2, 1, 2, 315000.00, 35000.00, 'Pagado', '2026-03-07', 'Tarjeta Débito', 'REC-2026-0002', 2026, 'III', 'Pago confirmado en tesorería'),
+(3, 3, 3, 250000.00, 0.00, 'Pagado', '2026-04-08', 'Tarjeta Crédito', 'REC-2026-0003', 2026, 'IV', 'Pago confirmado en tesorería'),
+(4, 3, 4, 150000.00, 0.00, 'Pagado', '2026-05-09', 'Cheque', 'REC-2026-0004', 2026, 'Anual', 'Pago confirmado en tesorería'),
+(5, 5, 5, 120000.00, 0.00, 'Pagado', '2026-06-10', 'Efectivo', 'REC-2026-0005', 2026, 'I', 'Pago confirmado en tesorería'),
+(6, 5, 6, 50000.00, 0.00, 'Pagado', '2026-07-11', 'Transferencia', 'REC-2026-0006', 2026, 'II', 'Pago confirmado en tesorería'),
+(7, 7, 7, 15000.00, 0.00, 'Pagado', '2026-08-12', 'Tarjeta Débito', 'REC-2026-0007', 2026, 'III', 'Pago confirmado en tesorería'),
+(8, 8, 1, 500000.00, 0.00, 'Pagado', '2026-09-13', 'Tarjeta Crédito', 'REC-2026-0008', 2026, 'IV', 'Pago confirmado en tesorería'),
+(9, 9, 2, 350000.00, 0.00, 'Pagado', '2026-01-14', 'Cheque', 'REC-2026-0009', 2026, 'Anual', 'Pago confirmado en tesorería'),
+(10, 10, 3, 250000.00, 0.00, 'Pagado', '2026-02-15', 'Efectivo', 'REC-2026-0010', 2026, 'I', 'Pago confirmado en tesorería'),
+(11, 11, 4, 150000.00, 0.00, 'Pagado', '2026-03-16', 'Transferencia', 'REC-2026-0011', 2026, 'II', 'Pago confirmado en tesorería'),
+(12, 12, 5, 120000.00, 0.00, 'Pagado', '2026-04-17', 'Tarjeta Débito', 'REC-2026-0012', 2026, 'III', 'Pago confirmado en tesorería'),
+(13, 13, 6, 50000.00, 0.00, 'Pagado', '2026-05-18', 'Tarjeta Crédito', 'REC-2026-0013', 2026, 'IV', 'Pago confirmado en tesorería'),
+(14, 14, 7, 15000.00, 0.00, 'Pagado', '2026-06-19', 'Cheque', 'REC-2026-0014', 2026, 'Anual', 'Pago confirmado en tesorería'),
+(15, 15, 1, 500000.00, 0.00, 'Pagado', '2026-07-20', 'Efectivo', 'REC-2026-0015', 2026, 'I', 'Pago confirmado en tesorería'),
+(16, 16, 2, 350000.00, 0.00, 'Pagado', '2026-08-21', 'Transferencia', 'REC-2026-0016', 2026, 'II', 'Pago confirmado en tesorería'),
+(17, 17, 3, 250000.00, 0.00, 'Pagado', '2026-09-22', 'Tarjeta Débito', 'REC-2026-0017', 2026, 'III', 'Pago confirmado en tesorería'),
+(18, 18, 4, 150000.00, 0.00, 'Pagado', '2026-01-23', 'Tarjeta Crédito', 'REC-2026-0018', 2026, 'IV', 'Pago confirmado en tesorería'),
+(19, 19, 5, 120000.00, 0.00, 'Pagado', '2026-02-24', 'Cheque', 'REC-2026-0019', 2026, 'Anual', 'Pago confirmado en tesorería'),
+(20, 20, 6, 50000.00, 0.00, 'Pagado', '2026-03-05', 'Efectivo', 'REC-2026-0020', 2026, 'I', 'Pago confirmado en tesorería'),
+(21, 21, 7, 15000.00, 0.00, 'Pagado', '2026-04-06', 'Transferencia', 'REC-2026-0021', 2026, 'II', 'Pago confirmado en tesorería'),
+(22, 22, 1, 500000.00, 0.00, 'Pagado', '2026-05-07', 'Tarjeta Débito', 'REC-2026-0022', 2026, 'III', 'Pago confirmado en tesorería'),
+(23, 23, 2, 350000.00, 0.00, 'Pagado', '2026-06-08', 'Tarjeta Crédito', 'REC-2026-0023', 2026, 'IV', 'Pago confirmado en tesorería'),
+(24, 24, 3, 250000.00, 0.00, 'Pagado', '2026-07-09', 'Cheque', 'REC-2026-0024', 2026, 'Anual', 'Pago confirmado en tesorería'),
+(25, 25, 4, 150000.00, 0.00, 'Pagado', '2026-08-10', 'Efectivo', 'REC-2026-0025', 2026, 'I', 'Pago confirmado en tesorería'),
+(26, 26, 5, 120000.00, 0.00, 'Pagado', '2026-09-11', 'Transferencia', 'REC-2026-0026', 2026, 'II', 'Pago confirmado en tesorería'),
+(27, 27, 6, 50000.00, 0.00, 'Pagado', '2026-01-12', 'Tarjeta Débito', 'REC-2026-0027', 2026, 'III', 'Pago confirmado en tesorería'),
+(28, 28, 7, 15000.00, 0.00, 'Pagado', '2026-02-13', 'Tarjeta Crédito', 'REC-2026-0028', 2026, 'IV', 'Pago confirmado en tesorería'),
+(29, 29, 1, 500000.00, 0.00, 'Pagado', '2026-03-14', 'Cheque', 'REC-2026-0029', 2026, 'Anual', 'Pago confirmado en tesorería'),
+(1, 1, 2, 350000.00, 0.00, 'Pagado', '2026-04-15', 'Efectivo', 'REC-2026-0030', 2026, 'I', 'Pago confirmado en tesorería'),
+(2, 1, 3, 250000.00, 0.00, 'Pendiente', '2026-08-11', 'Transferencia', NULL, 2026, 'II', 'Pendiente por mora superior a 30 días'),
+(3, 3, 4, 150000.00, 0.00, 'Pendiente', '2026-08-12', 'Tarjeta Débito', NULL, 2026, 'III', 'Pendiente por mora superior a 30 días'),
+(4, 3, 5, 120000.00, 0.00, 'Pendiente', '2026-08-13', 'Tarjeta Crédito', NULL, 2026, 'IV', 'Pendiente por mora superior a 30 días'),
+(5, 5, 6, 50000.00, 0.00, 'Pendiente', '2026-08-14', 'Cheque', NULL, 2026, 'Anual', 'Pendiente por mora superior a 30 días'),
+(6, 5, 7, 15000.00, 0.00, 'Pendiente', '2026-08-15', 'Efectivo', NULL, 2026, 'I', 'Pendiente por mora superior a 30 días');
+
+-- 16. Facturas Electrónicas (30 registros vinculados a pagos confirmados)
+INSERT INTO facturas (numero_factura, id_pago, fecha_emision, cufe, nombre_archivo_pdf, ruta_archivo) VALUES
+('FE-2026-000001', 1, '2026-02-06', '9a4afc81405109ae859ce18b67684cd5d0b7ddd6f525466120a0684e118fc17b', 'factura_000001.txt', 'invoices/factura_000001.txt'),
+('FE-2026-000002', 2, '2026-03-07', 'cc40c65fddfafa1937a9a7e5f6f313ccba0b8932bbab87add273f0de8e996175', 'factura_000002.txt', 'invoices/factura_000002.txt'),
+('FE-2026-000003', 3, '2026-04-08', 'c6c94b96e90142f7a9a88429c032c2315ce0d3dd2e0cdf4b0be8ebbbf9647bfd', 'factura_000003.txt', 'invoices/factura_000003.txt'),
+('FE-2026-000004', 4, '2026-05-09', '8fddce1bd5035a3d46816318b33a6d4c43fa6083ca16b13d9b2857714c5c184f', 'factura_000004.txt', 'invoices/factura_000004.txt'),
+('FE-2026-000005', 5, '2026-06-10', 'ef55dd6b4fe0a230733346118a405d650be12cd4a9c5c6e426c48dfa7219411c', 'factura_000005.txt', 'invoices/factura_000005.txt'),
+('FE-2026-000006', 6, '2026-07-11', '083dec86b53ec662c9782e8100f167d024be703d1349547da3ef9e4ba6e47714', 'factura_000006.txt', 'invoices/factura_000006.txt'),
+('FE-2026-000007', 7, '2026-08-12', 'e72057ac84c846fe3827ae594952a995dfd1f62273788c55e73bac8c048c1afc', 'factura_000007.txt', 'invoices/factura_000007.txt'),
+('FE-2026-000008', 8, '2026-09-13', '4d029ea643a70f38a57210afd5eb3fc44a7a06fb4954c6b992e7103656feaab2', 'factura_000008.txt', 'invoices/factura_000008.txt'),
+('FE-2026-000009', 9, '2026-01-14', 'c596768d98c8a711b0fe56390fe74e923d02aa8e893ea775b9ed07a5dc9b4201', 'factura_000009.txt', 'invoices/factura_000009.txt'),
+('FE-2026-000010', 10, '2026-02-15', '014551730e79fec08bd36b740625c6f92502fc71694da6978e3f569f3da36318', 'factura_000010.txt', 'invoices/factura_000010.txt'),
+('FE-2026-000011', 11, '2026-03-16', '50e564c66825925af191772898aeb17dec72d34b29dc607894a60b1e82300503', 'factura_000011.txt', 'invoices/factura_000011.txt'),
+('FE-2026-000012', 12, '2026-04-17', '17435fa17744867068644bbee5981af6a37c6046475295173c9f870db06eefed', 'factura_000012.txt', 'invoices/factura_000012.txt'),
+('FE-2026-000013', 13, '2026-05-18', '8a49e253db769dcb7cd80098f5e69837a4d7eeed73ddcab3e9e8056dcccb45b7', 'factura_000013.txt', 'invoices/factura_000013.txt'),
+('FE-2026-000014', 14, '2026-06-19', '33fd84476e769252bd075f7c5b19a06a34fc79ba58ede02187b6cadd18893368', 'factura_000014.txt', 'invoices/factura_000014.txt'),
+('FE-2026-000015', 15, '2026-07-20', 'a8e71c27d98c58522a57dd8994545795d4ddb9fc33fe66ff843c8943f814053d', 'factura_000015.txt', 'invoices/factura_000015.txt'),
+('FE-2026-000016', 16, '2026-08-21', '590cd690cae60a2fcf477ce16fd168c46b5bf9b6577bb348fa1e36ab2307bd8e', 'factura_000016.txt', 'invoices/factura_000016.txt'),
+('FE-2026-000017', 17, '2026-09-22', '05507f531f8e5dfc7ae57e3d0b372017df9449f1633097ffeceb00ce752c342f', 'factura_000017.txt', 'invoices/factura_000017.txt'),
+('FE-2026-000018', 18, '2026-01-23', '3288ccfdd7f6d70cf6b9bf4c8f41922a03677139f88403d0e5f9173b8efbe6b1', 'factura_000018.txt', 'invoices/factura_000018.txt'),
+('FE-2026-000019', 19, '2026-02-24', 'f6641166a4d4bd2c4d66d92d4d66c12223e74cc81e3807f99dd526a679dbfbeb', 'factura_000019.txt', 'invoices/factura_000019.txt'),
+('FE-2026-000020', 20, '2026-03-05', '801c78df8cfa08eb2afdc32ea6dd48f2158f630ba778617e01f663bb75304dd1', 'factura_000020.txt', 'invoices/factura_000020.txt'),
+('FE-2026-000021', 21, '2026-04-06', 'c48f9cc87941ad2cfc238f9cc94800b8ae4b79c253b66091f0d2b308016bd4d4', 'factura_000021.txt', 'invoices/factura_000021.txt'),
+('FE-2026-000022', 22, '2026-05-07', '6fec0b145abf7123e3c97067c3094867599af4b3be3373c56ef8e06fcfdb4ce1', 'factura_000022.txt', 'invoices/factura_000022.txt'),
+('FE-2026-000023', 23, '2026-06-08', 'cfcc89c7bd70474ffe000b33c343d0bfa8bf564dbca55aae99ff34ebba1674af', 'factura_000023.txt', 'invoices/factura_000023.txt'),
+('FE-2026-000024', 24, '2026-07-09', '53f2c035a56199a0d2a53eea086891b418b4f866edf75186191c0eb70d72fd39', 'factura_000024.txt', 'invoices/factura_000024.txt'),
+('FE-2026-000025', 25, '2026-08-10', 'e5e25abd2a3ca1b414087ed05b23087eb42a7e0dd9ba821fb9b8749fe87a9c3b', 'factura_000025.txt', 'invoices/factura_000025.txt'),
+('FE-2026-000026', 26, '2026-09-11', '3d79bd0e4762ae92ff583413c3ab76bba2360d006c77b3a2ee4bb04f6e10ec30', 'factura_000026.txt', 'invoices/factura_000026.txt'),
+('FE-2026-000027', 27, '2026-01-12', 'bdfa0f51332b85eb741ba00b66dd3c94439ee1606d530a88850ed9538d049404', 'factura_000027.txt', 'invoices/factura_000027.txt'),
+('FE-2026-000028', 28, '2026-02-13', '4e36c4472735ff40150bb058f1259fbbdba8fa8d089de49d95d5a3f7bc396965', 'factura_000028.txt', 'invoices/factura_000028.txt'),
+('FE-2026-000029', 29, '2026-03-14', 'b546af09bb1decfd525dc75dddcd363551a3e66a79c3d06701bf48b9b1338b62', 'factura_000029.txt', 'invoices/factura_000029.txt'),
+('FE-2026-000030', 30, '2026-04-15', 'c19861cb5cbb7eb6dc44328e5446cf42ea740d787fcc737e8a406505ad2cb6dc', 'factura_000030.txt', 'invoices/factura_000030.txt');
+
+-- 17. Recursos de Biblioteca y Laboratorios (32 registros)
+INSERT INTO recursos (codigo_recurso, nombre_recurso, id_categoria, descripcion, fecha_adquisicion, ubicacion_fisica, estado_recurso) VALUES
+('REC-0001', 'Cálculo de Stewart 8a Ed. #1', 1, 'Recurso institucional inventariado', '2024-03-02', 'Biblioteca Central - Estante A1', 'Disponible'),
+('REC-0002', 'Microscopio Óptico Binocular #1', 2, 'Recurso institucional inventariado', '2024-03-03', 'Laboratorio de Biología', 'Disponible'),
+('REC-0003', 'Balón de Fútbol Profesional #1', 3, 'Recurso institucional inventariado', '2024-03-04', 'Bodega Deportiva', 'Disponible'),
+('REC-0004', 'Tablet Samsung Galaxy Tab A8 #1', 4, 'Recurso institucional inventariado', '2024-03-05', 'Sala de Tecnología', 'Disponible'),
+('REC-0005', 'Globo Terráqueo Político #1', 5, 'Recurso institucional inventariado', '2024-03-06', 'Salón de Sociales 201', 'Disponible'),
+('REC-0006', 'Cien Años de Soledad #1', 1, 'Recurso institucional inventariado', '2024-03-07', 'Biblioteca Central - Literatura', 'Disponible'),
+('REC-0007', 'Balanza Analítica Digital #1', 2, 'Recurso institucional inventariado', '2024-03-08', 'Laboratorio de Química', 'Disponible'),
+('REC-0008', 'Calculadora Científica Casio fx-991 #1', 4, 'Recurso institucional inventariado', '2024-03-09', 'Coordinación Académica', 'Disponible'),
+('REC-0009', 'Kit de Robótica Arduino Uno #1', 4, 'Recurso institucional inventariado', '2024-03-10', 'Laboratorio de Robótica', 'Disponible'),
+('REC-0010', 'Esqueleto Anatómico Escala 1:2 #1', 5, 'Recurso institucional inventariado', '2024-03-11', 'Laboratorio de Biología', 'Disponible'),
+('REC-0011', 'Física Universitaria Sears-Zemansky #1', 1, 'Recurso institucional inventariado', '2024-03-12', 'Biblioteca Central - Estante B3', 'Disponible'),
+('REC-0012', 'Osciloscopio Digital 100MHz #1', 2, 'Recurso institucional inventariado', '2024-03-13', 'Laboratorio de Física', 'Disponible'),
+('REC-0013', 'Set de Balones de Baloncesto #1', 3, 'Recurso institucional inventariado', '2024-03-14', 'Coliseo Cubierto', 'Disponible'),
+('REC-0014', 'Portátil Lenovo ThinkPad E14 #1', 4, 'Recurso institucional inventariado', '2024-03-15', 'Sala de Docentes', 'Disponible'),
+('REC-0015', 'Mapa Físico de Colombia #1', 5, 'Recurso institucional inventariado', '2024-03-16', 'Salón de Geografía', 'Disponible'),
+('REC-0016', 'Química General Raymond Chang #1', 1, 'Recurso institucional inventariado', '2024-03-17', 'Biblioteca Central - Estante B4', 'Disponible'),
+('REC-0017', 'Cálculo de Stewart 8a Ed. #2', 1, 'Recurso institucional inventariado', '2024-03-18', 'Biblioteca Central - Estante A1', 'Disponible'),
+('REC-0018', 'Microscopio Óptico Binocular #2', 2, 'Recurso institucional inventariado', '2024-03-19', 'Laboratorio de Biología', 'Disponible'),
+('REC-0019', 'Balón de Fútbol Profesional #2', 3, 'Recurso institucional inventariado', '2024-03-20', 'Bodega Deportiva', 'Disponible'),
+('REC-0020', 'Tablet Samsung Galaxy Tab A8 #2', 4, 'Recurso institucional inventariado', '2024-03-21', 'Sala de Tecnología', 'Disponible'),
+('REC-0021', 'Globo Terráqueo Político #2', 5, 'Recurso institucional inventariado', '2024-03-22', 'Salón de Sociales 201', 'Disponible'),
+('REC-0022', 'Cien Años de Soledad #2', 1, 'Recurso institucional inventariado', '2024-03-23', 'Biblioteca Central - Literatura', 'Disponible'),
+('REC-0023', 'Balanza Analítica Digital #2', 2, 'Recurso institucional inventariado', '2024-03-24', 'Laboratorio de Química', 'Disponible'),
+('REC-0024', 'Calculadora Científica Casio fx-991 #2', 4, 'Recurso institucional inventariado', '2024-03-25', 'Coordinación Académica', 'Disponible'),
+('REC-0025', 'Kit de Robótica Arduino Uno #2', 4, 'Recurso institucional inventariado', '2024-03-01', 'Laboratorio de Robótica', 'Prestado'),
+('REC-0026', 'Esqueleto Anatómico Escala 1:2 #2', 5, 'Recurso institucional inventariado', '2024-03-02', 'Laboratorio de Biología', 'Prestado'),
+('REC-0027', 'Física Universitaria Sears-Zemansky #2', 1, 'Recurso institucional inventariado', '2024-03-03', 'Biblioteca Central - Estante B3', 'Prestado'),
+('REC-0028', 'Osciloscopio Digital 100MHz #2', 2, 'Recurso institucional inventariado', '2024-03-04', 'Laboratorio de Física', 'Prestado'),
+('REC-0029', 'Set de Balones de Baloncesto #2', 3, 'Recurso institucional inventariado', '2024-03-05', 'Coliseo Cubierto', 'En Mantenimiento'),
+('REC-0030', 'Portátil Lenovo ThinkPad E14 #2', 4, 'Recurso institucional inventariado', '2024-03-06', 'Sala de Docentes', 'En Mantenimiento'),
+('REC-0031', 'Mapa Físico de Colombia #2', 5, 'Recurso institucional inventariado', '2024-03-07', 'Salón de Geografía', 'Dado de Baja'),
+('REC-0032', 'Química General Raymond Chang #2', 1, 'Recurso institucional inventariado', '2024-03-08', 'Biblioteca Central - Estante B4', 'Dado de Baja');
+
+-- 18. Préstamos a Estudiantes (12 registros)
+INSERT INTO prestamos_estudiante (id_recurso, id_estudiante, fecha_prestamo, fecha_devolucion_esperada, fecha_devolucion_real, estado_prestamo, observaciones) VALUES
+(25, 1, '2026-10-01', '2026-10-15', NULL, 'Vencido', 'Libro con fecha de devolución vencida'),
+(26, 2, '2026-11-10', '2026-11-24', NULL, 'Activo', 'Préstamo vigente para laboratorio'),
+(1, 3, '2026-08-02', '2026-08-09', '2026-08-08', 'Devuelto', 'Devuelto en buen estado'),
+(2, 4, '2026-08-03', '2026-08-10', '2026-08-09', 'Devuelto', 'Devuelto en buen estado'),
+(3, 5, '2026-08-04', '2026-08-11', '2026-08-10', 'Devuelto', 'Devuelto en buen estado'),
+(4, 6, '2026-08-05', '2026-08-12', '2026-08-11', 'Devuelto', 'Devuelto en buen estado'),
+(5, 7, '2026-08-06', '2026-08-13', '2026-08-12', 'Devuelto', 'Devuelto en buen estado'),
+(6, 8, '2026-08-07', '2026-08-14', '2026-08-13', 'Devuelto', 'Devuelto en buen estado'),
+(7, 9, '2026-08-08', '2026-08-15', '2026-08-14', 'Devuelto', 'Devuelto en buen estado'),
+(8, 10, '2026-08-09', '2026-08-16', '2026-08-15', 'Devuelto', 'Devuelto en buen estado'),
+(9, 11, '2026-08-10', '2026-08-17', '2026-08-16', 'Devuelto', 'Devuelto en buen estado'),
+(10, 12, '2026-08-11', '2026-08-18', '2026-08-17', 'Devuelto', 'Devuelto en buen estado');
+
+-- 19. Préstamos a Profesores (10 registros)
+INSERT INTO prestamos_profesor (id_recurso, id_profesor, fecha_prestamo, fecha_devolucion_esperada, fecha_devolucion_real, estado_prestamo, observaciones) VALUES
+(27, 1, '2026-10-05', '2026-10-20', NULL, 'Vencido', 'Equipo pendiente por devolver'),
+(28, 2, '2026-11-12', '2026-11-26', NULL, 'Activo', 'Uso en clase de ciencias'),
+(11, 3, '2026-09-12', '2026-09-21', '2026-09-20', 'Devuelto', 'Devuelto por docente sin novedad'),
+(12, 4, '2026-09-13', '2026-09-22', '2026-09-21', 'Devuelto', 'Devuelto por docente sin novedad'),
+(13, 5, '2026-09-14', '2026-09-23', '2026-09-22', 'Devuelto', 'Devuelto por docente sin novedad'),
+(14, 6, '2026-09-15', '2026-09-24', '2026-09-23', 'Devuelto', 'Devuelto por docente sin novedad'),
+(15, 7, '2026-09-01', '2026-09-10', '2026-09-09', 'Devuelto', 'Devuelto por docente sin novedad'),
+(16, 8, '2026-09-02', '2026-09-11', '2026-09-10', 'Devuelto', 'Devuelto por docente sin novedad'),
+(17, 9, '2026-09-03', '2026-09-12', '2026-09-11', 'Devuelto', 'Devuelto por docente sin novedad'),
+(18, 10, '2026-09-04', '2026-09-13', '2026-09-12', 'Devuelto', 'Devuelto por docente sin novedad');
+
+-- Verificación final de tablas creadas
+SELECT TABLE_NAME AS 'Tabla Creada', TABLE_ROWS AS 'Filas Estimadas' FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'erp_little_horizons' ORDER BY TABLE_NAME;

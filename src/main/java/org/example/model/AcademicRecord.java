@@ -1,35 +1,26 @@
 package org.example.model;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 public class AcademicRecord {
 
     private int id;
-    private int enrollmentSubjectId;
+    private int studentId;
+    private int subjectId;
+    private int teacherId;
     private int academicYear;
     private AcademicPeriod period;
     private double gradeValue;
-    private double percentage = 25.0;
-    private String remarks;
-    private LocalDateTime recordDate;
+    private String observations;
+    private LocalDate recordDate;
+    private String studentName;
+    private String subjectName;
+    private String teacherName;
 
-    // Empty constructor
     public AcademicRecord() {
+        this.recordDate = LocalDate.now();
     }
 
-    // Constructor with fields
-    public AcademicRecord(int id, int enrollmentSubjectId, int academicYear, AcademicPeriod period,
-                          double gradeValue, double percentage, String remarks) {
-        this.id = id;
-        this.enrollmentSubjectId = enrollmentSubjectId;
-        this.academicYear = academicYear;
-        this.period = period;
-        this.gradeValue = gradeValue;
-        this.percentage = percentage;
-        this.remarks = remarks;
-    }
-
-    // Getters and Setters
     public int getId() {
         return this.id;
     }
@@ -38,12 +29,28 @@ public class AcademicRecord {
         this.id = id;
     }
 
-    public int getEnrollmentSubjectId() {
-        return this.enrollmentSubjectId;
+    public int getStudentId() {
+        return this.studentId;
     }
 
-    public void setEnrollmentSubjectId(int enrollmentSubjectId) {
-        this.enrollmentSubjectId = enrollmentSubjectId;
+    public void setStudentId(int studentId) {
+        this.studentId = studentId;
+    }
+
+    public int getSubjectId() {
+        return this.subjectId;
+    }
+
+    public void setSubjectId(int subjectId) {
+        this.subjectId = subjectId;
+    }
+
+    public int getTeacherId() {
+        return this.teacherId;
+    }
+
+    public void setTeacherId(int teacherId) {
+        this.teacherId = teacherId;
     }
 
     public int getAcademicYear() {
@@ -70,38 +77,53 @@ public class AcademicRecord {
         this.gradeValue = gradeValue;
     }
 
-    public double getPercentage() {
-        return this.percentage;
+    public String getObservations() {
+        return this.observations;
     }
 
-    public void setPercentage(double percentage) {
-        this.percentage = percentage;
+    public void setObservations(String observations) {
+        this.observations = observations;
     }
 
-    public String getRemarks() {
-        return this.remarks;
-    }
-
-    public void setRemarks(String remarks) {
-        this.remarks = remarks;
-    }
-
-    public LocalDateTime getRecordDate() {
+    public LocalDate getRecordDate() {
         return this.recordDate;
     }
 
-    public void setRecordDate(LocalDateTime recordDate) {
+    public void setRecordDate(LocalDate recordDate) {
         this.recordDate = recordDate;
+    }
+
+    public String getStudentName() {
+        return this.studentName;
+    }
+
+    public void setStudentName(String studentName) {
+        this.studentName = studentName;
+    }
+
+    public String getSubjectName() {
+        return this.subjectName;
+    }
+
+    public void setSubjectName(String subjectName) {
+        this.subjectName = subjectName;
+    }
+
+    public String getTeacherName() {
+        return this.teacherName;
+    }
+
+    public void setTeacherName(String teacherName) {
+        this.teacherName = teacherName;
     }
 
     @Override
     public String toString() {
-        String p = (this.period != null) ? this.period.getDbValue() : "";
-        return "Registro ID: " + this.id
-                + " | Inscripcion ID: " + this.enrollmentSubjectId
-                + " | Año: " + this.academicYear
-                + " | Periodo: " + p
-                + " | Nota: " + this.gradeValue
-                + " | Obs: " + this.remarks;
+        String per = (this.period != null) ? this.period.getDbValue() : "N/A";
+        return String.format("Reg #%d | Est: %s | Materia: %s | Ano: %d Per: %s | Nota: %.1f | Fecha: %s",
+                this.id,
+                this.studentName != null ? this.studentName : String.valueOf(this.studentId),
+                this.subjectName != null ? this.subjectName : String.valueOf(this.subjectId),
+                this.academicYear, per, this.gradeValue, this.recordDate);
     }
 }

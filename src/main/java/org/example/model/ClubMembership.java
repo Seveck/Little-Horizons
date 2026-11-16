@@ -5,25 +5,20 @@ import java.time.LocalDate;
 public class ClubMembership {
 
     private int id;
-    private int clubId;
     private int studentId;
+    private int clubId;
     private LocalDate joinDate;
-    private MembershipStatus status = MembershipStatus.ACTIVE;
+    private MembershipStatus status;
+    private LocalDate withdrawalDate;
+    private String withdrawalReason;
+    private String studentName;
+    private String clubName;
 
-    // Empty constructor
     public ClubMembership() {
+        this.joinDate = LocalDate.now();
+        this.status = MembershipStatus.ACTIVE;
     }
 
-    // Constructor with fields
-    public ClubMembership(int id, int clubId, int studentId, LocalDate joinDate, MembershipStatus status) {
-        this.id = id;
-        this.clubId = clubId;
-        this.studentId = studentId;
-        this.joinDate = joinDate;
-        this.status = status;
-    }
-
-    // Getters and Setters
     public int getId() {
         return this.id;
     }
@@ -32,20 +27,20 @@ public class ClubMembership {
         this.id = id;
     }
 
-    public int getClubId() {
-        return this.clubId;
-    }
-
-    public void setClubId(int clubId) {
-        this.clubId = clubId;
-    }
-
     public int getStudentId() {
         return this.studentId;
     }
 
     public void setStudentId(int studentId) {
         this.studentId = studentId;
+    }
+
+    public int getClubId() {
+        return this.clubId;
+    }
+
+    public void setClubId(int clubId) {
+        this.clubId = clubId;
     }
 
     public LocalDate getJoinDate() {
@@ -64,13 +59,45 @@ public class ClubMembership {
         this.status = status;
     }
 
+    public LocalDate getWithdrawalDate() {
+        return this.withdrawalDate;
+    }
+
+    public void setWithdrawalDate(LocalDate withdrawalDate) {
+        this.withdrawalDate = withdrawalDate;
+    }
+
+    public String getWithdrawalReason() {
+        return this.withdrawalReason;
+    }
+
+    public void setWithdrawalReason(String withdrawalReason) {
+        this.withdrawalReason = withdrawalReason;
+    }
+
+    public String getStudentName() {
+        return this.studentName;
+    }
+
+    public void setStudentName(String studentName) {
+        this.studentName = studentName;
+    }
+
+    public String getClubName() {
+        return this.clubName;
+    }
+
+    public void setClubName(String clubName) {
+        this.clubName = clubName;
+    }
+
     @Override
     public String toString() {
-        String st = (this.status != null) ? this.status.getDbValue() : "";
-        return "Membresia ID: " + this.id
-                + " | Club ID: " + this.clubId
-                + " | Estudiante ID: " + this.studentId
-                + " | Fecha Ingreso: " + this.joinDate
-                + " | Estado: " + st;
+        String st = (this.status != null) ? this.status.getDbValue() : "N/A";
+        return String.format("Membresia #%d | Est: %s | Club: %s | Ingreso: %s | Estado: %s",
+                this.id,
+                this.studentName != null ? this.studentName : String.valueOf(this.studentId),
+                this.clubName != null ? this.clubName : String.valueOf(this.clubId),
+                this.joinDate, st);
     }
 }

@@ -6,68 +6,61 @@ import org.example.util.DatabaseConnection;
 import org.example.util.ErrorLogger;
 
 import java.sql.Connection;
+import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 
 public class AcademicRecordDao {
 
-    // Simple helper class to hold joined grade data for Stream calculations and console display
+    // Helper class with joined details for averages and reports
     public static class GradeDetail {
         public int recordId;
-        public int enrollmentSubjectId;
         public int studentId;
         public String studentName;
         public int subjectId;
         public String subjectCode;
         public String subjectName;
+        public int teacherId;
+        public String teacherName;
         public String gradeName;
         public int academicYear;
         public AcademicPeriod period;
         public double gradeValue;
-        public double percentage;
-        public String remarks;
+        public String observations;
 
         @Override
         public String toString() {
-            String p = (this.period != null) ? this.period.getDbValue() : "";
-            return "Registro #" + this.recordId
-                    + " | Año: " + this.academicYear
-                    + " | Grado: " + this.gradeName
-                    + " | Estudiante: " + this.studentName
-                    + " | Materia: [" + this.subjectCode + "] " + this.subjectName
-                    + " | Periodo: " + p
-                    + " | Nota: " + this.gradeValue
-                    + " | Obs: " + this.remarks;
+            String per = (this.period != null) ? this.period.getDbValue() : "";
+            return String.format("Reg #%d | %d Per %s | Est: %s | [%s] %s (%s) | Nota: %.1f",
+                    this.recordId, this.academicYear, per, this.studentName,
+                    this.subjectCode, this.subjectName, this.gradeName, this.gradeValue);
         }
     }
 
-    // Insert a grade record (valor_nota between 0.0 and 5.0)
+    // Insert a grade record (0.0 to 5.0)
     public int insert(AcademicRecord record) {
-        String sql = "INSERT INTO registros_academicos (id_inscripcion, año_academico, periodo, "
-                + "valor_nota, porcentaje, observaciones) VALUES (?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO registros_academicos (id_estudiante, id_materia, id_profesor, año_academico, "
+                + "periodo_academico, valor_nota, observaciones, fecha_registro) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         try (Connection conn = DatabaseConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-
-            ps.setInt(1, record.getEnrollmentSubjectId());
-            ps.setInt(2, record.getAcademicYear());
-            ps.setString(3, record.getPeriod().getDbValue());
-            ps.setDouble(4, record.getGradeValue());
-            ps.setDouble(5, record.getPercentage());
-            ps.setString(6, record.getRemarks());
-
-            int rows = ps.executeUpdate();
-            if (rows > 0) {
-                try (ResultSet rs = ps.getGeneratedKeys()) {
-                    if (rs.next()) {
-                        int id = rs.getInt(1);
-                        record.setId(id);
-                        return id;
-                    }
+            ps.setInt(1, record.getStudentId());
+            ps.setInt(2, record.getSubjectId());
+            ps.setInt(3, record.getTeacherId());
+            ps.setInt(4, record.getAcademicYear());
+            ps.setString(5, record.getPeriod().getDbValue());
+            ps.setDouble(6, record.getGradeValue());
+            ps.setString(7, record.getObservations());
+            ps.setDate(8, Date.valueOf(record.getRecordDate()));
+            ps.executeUpdate();
+            try (ResultSet rs = ps.getGeneratedKeys()) {
+                if (rs.next()) {
+                    int id = rs.getInt(1);
+                    record.setId(id);
+                    return id;
                 }
             }
         } catch (SQLException e) {
@@ -76,14 +69,13 @@ public class AcademicRecordDao {
         return -1;
     }
 
-    // Update a grade record
-    public boolean updateGrade(int recordId, double newGrade, String remarks) {
+    // Update existing grade record
+    public boolean updateGrade(int recordId, double newGrade, String observations) {
         String sql = "UPDATE registros_academicos SET valor_nota = ?, observaciones = ? WHERE id_registro = ?";
         try (Connection conn = DatabaseConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-
             ps.setDouble(1, newGrade);
-            ps.setString(2, remarks);
+            ps.setString(2, observations);
             ps.setInt(3, recordId);
             return ps.executeUpdate() > 0;
         } catch (SQLException e) {
@@ -92,48 +84,27 @@ public class AcademicRecordDao {
         }
     }
 
-    // Find all records for a given subject enrollment
-    public List<AcademicRecord> findBySubjectEnrollmentId(int enrollmentSubjectId) {
-        List<AcademicRecord> list = new ArrayList<>();
-        String sql = "SELECT * FROM registros_academicos WHERE id_inscripcion = ? ORDER BY periodo";
-        try (Connection conn = DatabaseConnection.getInstance().getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-
-            ps.setInt(1, enrollmentSubjectId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    list.add(this.mapRow(rs));
-                }
-            }
-        } catch (SQLException e) {
-            ErrorLogger.log(AcademicRecordDao.class, "findBySubjectEnrollmentId", e);
-        }
-        return list;
-    }
-
-    // Fetch complete grade details for an academic year (used for history and Stream averages)
+    // Find all grade records for an academic year
     public List<GradeDetail> findGradeDetailsByYear(int academicYear) {
         List<GradeDetail> list = new ArrayList<>();
-        String sql = "SELECT ra.id_registro, ra.id_inscripcion, e.id_estudiante, "
-                + "CONCAT(e.nombres, ' ', e.apellidos) AS estudiante, "
-                + "m.id_materia, m.codigo_materia, m.nombre_materia, g.nombre_grado, "
-                + "ra.año_academico, ra.periodo, ra.valor_nota, ra.porcentaje, ra.observaciones "
+        String sql = "SELECT ra.id_registro, ra.id_estudiante, "
+                + "CONCAT_WS(' ', e.primer_nombre, e.segundo_nombre, e.primer_apellido, e.segundo_apellido) AS student_name, "
+                + "ra.id_materia, m.codigo_materia, m.nombre_materia, g.nombre_grado, "
+                + "ra.id_profesor, CONCAT_WS(' ', p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido) AS teacher_name, "
+                + "ra.año_academico, ra.periodo_academico, ra.valor_nota, ra.observaciones "
                 + "FROM registros_academicos ra "
-                + "INNER JOIN inscripciones_materia im ON ra.id_inscripcion = im.id_inscripcion "
-                + "INNER JOIN estudiantes e ON im.id_estudiante = e.id_estudiante "
-                + "INNER JOIN asignaciones_profesor ap ON im.id_asignacion = ap.id_asignacion "
-                + "INNER JOIN materias m ON ap.id_materia = m.id_materia "
-                + "INNER JOIN grados g ON ap.id_grado = g.id_grado "
+                + "INNER JOIN estudiantes e ON ra.id_estudiante = e.id_estudiante "
+                + "INNER JOIN materias m ON ra.id_materia = m.id_materia "
+                + "INNER JOIN grados g ON m.id_grado = g.id_grado "
+                + "INNER JOIN profesores p ON ra.id_profesor = p.id_profesor "
                 + "WHERE ra.año_academico = ? "
-                + "ORDER BY e.apellidos, m.nombre_materia, ra.periodo";
-
+                + "ORDER BY e.primer_apellido, m.nombre_materia, ra.periodo_academico";
         try (Connection conn = DatabaseConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-
             ps.setInt(1, academicYear);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    list.add(this.mapGradeDetailRow(rs));
+                    list.add(this.mapGradeDetail(rs));
                 }
             }
         } catch (SQLException e) {
@@ -142,29 +113,27 @@ public class AcademicRecordDao {
         return list;
     }
 
-    // Fetch full academic history of a student across all years since enrollment
+    // Find complete multi-year academic history for a student
     public List<GradeDetail> findAllGradeDetailsByStudent(int studentId) {
         List<GradeDetail> list = new ArrayList<>();
-        String sql = "SELECT ra.id_registro, ra.id_inscripcion, e.id_estudiante, "
-                + "CONCAT(e.nombres, ' ', e.apellidos) AS estudiante, "
-                + "m.id_materia, m.codigo_materia, m.nombre_materia, g.nombre_grado, "
-                + "ra.año_academico, ra.periodo, ra.valor_nota, ra.porcentaje, ra.observaciones "
+        String sql = "SELECT ra.id_registro, ra.id_estudiante, "
+                + "CONCAT_WS(' ', e.primer_nombre, e.segundo_nombre, e.primer_apellido, e.segundo_apellido) AS student_name, "
+                + "ra.id_materia, m.codigo_materia, m.nombre_materia, g.nombre_grado, "
+                + "ra.id_profesor, CONCAT_WS(' ', p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido) AS teacher_name, "
+                + "ra.año_academico, ra.periodo_academico, ra.valor_nota, ra.observaciones "
                 + "FROM registros_academicos ra "
-                + "INNER JOIN inscripciones_materia im ON ra.id_inscripcion = im.id_inscripcion "
-                + "INNER JOIN estudiantes e ON im.id_estudiante = e.id_estudiante "
-                + "INNER JOIN asignaciones_profesor ap ON im.id_asignacion = ap.id_asignacion "
-                + "INNER JOIN materias m ON ap.id_materia = m.id_materia "
-                + "INNER JOIN grados g ON ap.id_grado = g.id_grado "
-                + "WHERE e.id_estudiante = ? "
-                + "ORDER BY ra.año_academico, m.nombre_materia, ra.periodo";
-
+                + "INNER JOIN estudiantes e ON ra.id_estudiante = e.id_estudiante "
+                + "INNER JOIN materias m ON ra.id_materia = m.id_materia "
+                + "INNER JOIN grados g ON m.id_grado = g.id_grado "
+                + "INNER JOIN profesores p ON ra.id_profesor = p.id_profesor "
+                + "WHERE ra.id_estudiante = ? "
+                + "ORDER BY ra.año_academico DESC, m.nombre_materia, ra.periodo_academico";
         try (Connection conn = DatabaseConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-
             ps.setInt(1, studentId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    list.add(this.mapGradeDetailRow(rs));
+                    list.add(this.mapGradeDetail(rs));
                 }
             }
         } catch (SQLException e) {
@@ -173,39 +142,21 @@ public class AcademicRecordDao {
         return list;
     }
 
-    // Helper to convert joined ResultSet row to GradeDetail
-    private GradeDetail mapGradeDetailRow(ResultSet rs) throws SQLException {
-        GradeDetail detail = new GradeDetail();
-        detail.recordId = rs.getInt("id_registro");
-        detail.enrollmentSubjectId = rs.getInt("id_inscripcion");
-        detail.studentId = rs.getInt("id_estudiante");
-        detail.studentName = rs.getString("estudiante");
-        detail.subjectId = rs.getInt("id_materia");
-        detail.subjectCode = rs.getString("codigo_materia");
-        detail.subjectName = rs.getString("nombre_materia");
-        detail.gradeName = rs.getString("nombre_grado");
-        detail.academicYear = rs.getInt("año_academico");
-        detail.period = AcademicPeriod.fromDbValue(rs.getString("periodo"));
-        detail.gradeValue = rs.getDouble("valor_nota");
-        detail.percentage = rs.getDouble("porcentaje");
-        detail.remarks = rs.getString("observaciones");
-        return detail;
-    }
-
-    // Helper to convert ResultSet row to AcademicRecord
-    private AcademicRecord mapRow(ResultSet rs) throws SQLException {
-        AcademicRecord ar = new AcademicRecord();
-        ar.setId(rs.getInt("id_registro"));
-        ar.setEnrollmentSubjectId(rs.getInt("id_inscripcion"));
-        ar.setAcademicYear(rs.getInt("año_academico"));
-        ar.setPeriod(AcademicPeriod.fromDbValue(rs.getString("periodo")));
-        ar.setGradeValue(rs.getDouble("valor_nota"));
-        ar.setPercentage(rs.getDouble("porcentaje"));
-        ar.setRemarks(rs.getString("observaciones"));
-        Timestamp ts = rs.getTimestamp("fecha_registro");
-        if (ts != null) {
-            ar.setRecordDate(ts.toLocalDateTime());
-        }
-        return ar;
+    private GradeDetail mapGradeDetail(ResultSet rs) throws SQLException {
+        GradeDetail d = new GradeDetail();
+        d.recordId = rs.getInt("id_registro");
+        d.studentId = rs.getInt("id_estudiante");
+        d.studentName = rs.getString("student_name");
+        d.subjectId = rs.getInt("id_materia");
+        d.subjectCode = rs.getString("codigo_materia");
+        d.subjectName = rs.getString("nombre_materia");
+        d.teacherId = rs.getInt("id_profesor");
+        d.teacherName = rs.getString("teacher_name");
+        d.gradeName = rs.getString("nombre_grado");
+        d.academicYear = rs.getInt("año_academico");
+        d.period = AcademicPeriod.fromDbValue(rs.getString("periodo_academico"));
+        d.gradeValue = rs.getDouble("valor_nota");
+        d.observations = rs.getString("observaciones");
+        return d;
     }
 }

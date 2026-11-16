@@ -4,20 +4,17 @@ public class Grade {
 
     private int id;
     private String name;
-    private GradeLevel level;
+    private int numericLevel;
 
-    // Empty constructor
     public Grade() {
     }
 
-    // Constructor with fields
-    public Grade(int id, String name, GradeLevel level) {
+    public Grade(int id, String name, int numericLevel) {
         this.id = id;
         this.name = name;
-        this.level = level;
+        this.numericLevel = numericLevel;
     }
 
-    // Getters and Setters
     public int getId() {
         return this.id;
     }
@@ -34,17 +31,16 @@ public class Grade {
         this.name = name;
     }
 
-    public GradeLevel getLevel() {
-        return this.level;
+    public int getNumericLevel() {
+        return this.numericLevel;
     }
 
-    public void setLevel(GradeLevel level) {
-        this.level = level;
+    public void setNumericLevel(int numericLevel) {
+        this.numericLevel = numericLevel;
     }
 
     @Override
     public String toString() {
-        String levelText = (this.level != null) ? this.level.getDbValue() : "";
-        return "ID: " + this.id + " | Grado: " + this.name + " | Nivel: " + levelText;
+        return "Grado [" + this.id + "] " + this.name + " (Nivel " + this.numericLevel + ")";
     }
 }

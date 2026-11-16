@@ -8,38 +8,21 @@ public class Teacher {
     private DocumentType documentType;
     private String documentNumber;
     private String firstName;
+    private String middleName;
     private String lastName;
-    private String specialty;
+    private String secondLastName;
     private String email;
     private String phone;
+    private String specialization;
     private LocalDate hireDate;
-    private TeacherStatus status = TeacherStatus.ACTIVE;
+    private TeacherStatus status;
 
-    // Empty constructor
     public Teacher() {
+        this.documentType = DocumentType.CC;
+        this.status = TeacherStatus.ACTIVE;
+        this.hireDate = LocalDate.now();
     }
 
-    // Constructor with fields
-    public Teacher(int id, DocumentType documentType, String documentNumber, String firstName,
-                   String lastName, String specialty, String email, String phone,
-                   LocalDate hireDate, TeacherStatus status) {
-        this.id = id;
-        this.documentType = documentType;
-        this.documentNumber = documentNumber;
-        this.firstName = firstName;
-        this.lastName = lastName;
-        this.specialty = specialty;
-        this.email = email;
-        this.phone = phone;
-        this.hireDate = hireDate;
-        this.status = status;
-    }
-
-    public String getFullName() {
-        return this.firstName + " " + this.lastName;
-    }
-
-    // Getters and Setters
     public int getId() {
         return this.id;
     }
@@ -72,6 +55,14 @@ public class Teacher {
         this.firstName = firstName;
     }
 
+    public String getMiddleName() {
+        return this.middleName;
+    }
+
+    public void setMiddleName(String middleName) {
+        this.middleName = middleName;
+    }
+
     public String getLastName() {
         return this.lastName;
     }
@@ -80,12 +71,29 @@ public class Teacher {
         this.lastName = lastName;
     }
 
-    public String getSpecialty() {
-        return this.specialty;
+    public String getSecondLastName() {
+        return this.secondLastName;
     }
 
-    public void setSpecialty(String specialty) {
-        this.specialty = specialty;
+    public void setSecondLastName(String secondLastName) {
+        this.secondLastName = secondLastName;
+    }
+
+    public String getFullName() {
+        StringBuilder sb = new StringBuilder();
+        if (this.firstName != null && !this.firstName.isEmpty()) {
+            sb.append(this.firstName);
+        }
+        if (this.middleName != null && !this.middleName.isEmpty()) {
+            sb.append(" ").append(this.middleName);
+        }
+        if (this.lastName != null && !this.lastName.isEmpty()) {
+            sb.append(" ").append(this.lastName);
+        }
+        if (this.secondLastName != null && !this.secondLastName.isEmpty()) {
+            sb.append(" ").append(this.secondLastName);
+        }
+        return sb.toString().trim();
     }
 
     public String getEmail() {
@@ -102,6 +110,14 @@ public class Teacher {
 
     public void setPhone(String phone) {
         this.phone = phone;
+    }
+
+    public String getSpecialization() {
+        return this.specialization;
+    }
+
+    public void setSpecialization(String specialization) {
+        this.specialization = specialization;
     }
 
     public LocalDate getHireDate() {
@@ -122,11 +138,10 @@ public class Teacher {
 
     @Override
     public String toString() {
-        String st = (this.status != null) ? this.status.getDbValue() : "";
-        return "ID: " + this.id
-                + " | Profesor: " + this.firstName + " " + this.lastName
-                + " | Especialidad: " + this.specialty
-                + " | Estado: " + st
-                + " | Tel: " + this.phone;
+        String st = (this.status != null) ? this.status.getDbValue() : "N/A";
+        String dt = (this.documentType != null) ? this.documentType.getDbValue() : "";
+        return String.format("ID: %d | %s %s | %s | Esp: %s | Email: %s | Estado: %s",
+                this.id, dt, this.documentNumber, this.getFullName(),
+                this.specialization != null ? this.specialization : "-", this.email, st);
     }
 }

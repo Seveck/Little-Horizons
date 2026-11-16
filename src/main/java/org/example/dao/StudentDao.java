@@ -13,39 +13,27 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.sql.Timestamp;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.List;
 
 public class StudentDao {
 
-    // Insert a single student and return generated id
+    // Insert a new student
     public int insert(Student student) {
-        String sql = "INSERT INTO estudiantes (tipo_documento, numero_documento, nombres, apellidos, "
-                + "fecha_nacimiento, genero, direccion, telefono, email, estado) "
-                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO estudiantes (tipo_documento, numero_documento, primer_nombre, segundo_nombre, "
+                + "primer_apellido, segundo_apellido, fecha_nacimiento, genero, direccion, telefono, correo_electronico, "
+                + "tipo_sangre, alergias, condiciones_medicas, fecha_ingreso, estado) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (Connection conn = DatabaseConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-
-            ps.setString(1, student.getDocumentType().getDbValue());
-            ps.setString(2, student.getDocumentNumber());
-            ps.setString(3, student.getFirstName());
-            ps.setString(4, student.getLastName());
-            ps.setDate(5, Date.valueOf(student.getBirthDate()));
-            ps.setString(6, student.getGender().getDbValue());
-            ps.setString(7, student.getAddress());
-            ps.setString(8, student.getPhone());
-            ps.setString(9, student.getEmail());
-            ps.setString(10, student.getStatus().getDbValue());
-
-            int rows = ps.executeUpdate();
-            if (rows > 0) {
-                try (ResultSet rs = ps.getGeneratedKeys()) {
-                    if (rs.next()) {
-                        int generatedId = rs.getInt(1);
-                        student.setId(generatedId);
-                        return generatedId;
-                    }
+            this.fillInsertParams(ps, student);
+            ps.executeUpdate();
+            try (ResultSet rs = ps.getGeneratedKeys()) {
+                if (rs.next()) {
+                    int id = rs.getInt(1);
+                    student.setId(id);
+                    return id;
                 }
             }
         } catch (SQLException e) {
@@ -54,12 +42,13 @@ public class StudentDao {
         return -1;
     }
 
-    // Transaction: insert student and link guardian in one atomic operation
-    public int registerStudentWithGuardian(Student student, int guardianId, boolean isPrimary, String relationship) {
-        String sqlStudent = "INSERT INTO estudiantes (tipo_documento, numero_documento, nombres, apellidos, "
-                + "fecha_nacimiento, genero, direccion, telefono, email, estado) "
-                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        String sqlLink = "INSERT INTO estudiante_acudiente (id_estudiante, id_acudiente, es_principal, relacion) "
+    // Register student and link with guardian inside a transaction
+    public int registerStudentWithGuardian(Student student, int guardianId, boolean isPrimary, boolean isEmergencyContact) {
+        String insertStudentSql = "INSERT INTO estudiantes (tipo_documento, numero_documento, primer_nombre, segundo_nombre, "
+                + "primer_apellido, segundo_apellido, fecha_nacimiento, genero, direccion, telefono, correo_electronico, "
+                + "tipo_sangre, alergias, condiciones_medicas, fecha_ingreso, estado) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        String linkSql = "INSERT INTO estudiante_acudiente (id_estudiante, id_acudiente, es_principal, es_contacto_emergencia) "
                 + "VALUES (?, ?, ?, ?)";
 
         Connection conn = null;
@@ -68,20 +57,10 @@ public class StudentDao {
             conn.setAutoCommit(false);
 
             int studentId = -1;
-            try (PreparedStatement psStudent = conn.prepareStatement(sqlStudent, Statement.RETURN_GENERATED_KEYS)) {
-                psStudent.setString(1, student.getDocumentType().getDbValue());
-                psStudent.setString(2, student.getDocumentNumber());
-                psStudent.setString(3, student.getFirstName());
-                psStudent.setString(4, student.getLastName());
-                psStudent.setDate(5, Date.valueOf(student.getBirthDate()));
-                psStudent.setString(6, student.getGender().getDbValue());
-                psStudent.setString(7, student.getAddress());
-                psStudent.setString(8, student.getPhone());
-                psStudent.setString(9, student.getEmail());
-                psStudent.setString(10, student.getStatus().getDbValue());
-
-                psStudent.executeUpdate();
-                try (ResultSet rs = psStudent.getGeneratedKeys()) {
+            try (PreparedStatement ps = conn.prepareStatement(insertStudentSql, Statement.RETURN_GENERATED_KEYS)) {
+                this.fillInsertParams(ps, student);
+                ps.executeUpdate();
+                try (ResultSet rs = ps.getGeneratedKeys()) {
                     if (rs.next()) {
                         studentId = rs.getInt(1);
                         student.setId(studentId);
@@ -94,12 +73,12 @@ public class StudentDao {
                 return -1;
             }
 
-            try (PreparedStatement psLink = conn.prepareStatement(sqlLink)) {
-                psLink.setInt(1, studentId);
-                psLink.setInt(2, guardianId);
-                psLink.setBoolean(3, isPrimary);
-                psLink.setString(4, relationship);
-                psLink.executeUpdate();
+            try (PreparedStatement linkPs = conn.prepareStatement(linkSql)) {
+                linkPs.setInt(1, studentId);
+                linkPs.setInt(2, guardianId);
+                linkPs.setBoolean(3, isPrimary);
+                linkPs.setBoolean(4, isEmergencyContact);
+                linkPs.executeUpdate();
             }
 
             conn.commit();
@@ -109,34 +88,55 @@ public class StudentDao {
             if (conn != null) {
                 try {
                     conn.rollback();
-                } catch (SQLException ex) {
-                    ErrorLogger.log(StudentDao.class, "registerStudentWithGuardian.rollback", ex);
+                } catch (SQLException rollbackEx) {
+                    ErrorLogger.log(StudentDao.class, "registerStudentWithGuardian.rollback", rollbackEx);
                 }
             }
+            return -1;
         } finally {
             if (conn != null) {
                 try {
                     conn.setAutoCommit(true);
-                    conn.close();
-                } catch (SQLException e) {
-                    ErrorLogger.log(StudentDao.class, "registerStudentWithGuardian.close", e);
+                } catch (SQLException ex) {
+                    ErrorLogger.log(StudentDao.class, "registerStudentWithGuardian.finally", ex);
                 }
             }
         }
-        return -1;
     }
 
-    // Link an existing guardian to an existing student
-    public boolean linkGuardian(int studentId, int guardianId, boolean isPrimary, String relationship) {
-        String sql = "INSERT INTO estudiante_acudiente (id_estudiante, id_acudiente, es_principal, relacion) "
+    private void fillInsertParams(PreparedStatement ps, Student student) throws SQLException {
+        ps.setString(1, student.getDocumentType().getDbValue());
+        ps.setString(2, student.getDocumentNumber());
+        ps.setString(3, student.getFirstName());
+        ps.setString(4, student.getMiddleName());
+        ps.setString(5, student.getLastName());
+        ps.setString(6, student.getSecondLastName());
+        ps.setDate(7, Date.valueOf(student.getBirthDate()));
+        ps.setString(8, student.getGender().getDbValue());
+        ps.setString(9, student.getAddress());
+        ps.setString(10, student.getPhone());
+        ps.setString(11, student.getEmail());
+        ps.setString(12, student.getBloodType());
+        ps.setString(13, student.getAllergies());
+        ps.setString(14, student.getMedicalConditions());
+        if (student.getEnrollmentDate() != null) {
+            ps.setDate(15, Date.valueOf(student.getEnrollmentDate()));
+        } else {
+            ps.setDate(15, Date.valueOf(java.time.LocalDate.now()));
+        }
+        ps.setString(16, student.getStatus().getDbValue());
+    }
+
+    // Link existing student with existing guardian
+    public boolean linkGuardian(int studentId, int guardianId, boolean isPrimary, boolean isEmergencyContact) {
+        String sql = "INSERT INTO estudiante_acudiente (id_estudiante, id_acudiente, es_principal, es_contacto_emergencia) "
                 + "VALUES (?, ?, ?, ?)";
         try (Connection conn = DatabaseConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-
             ps.setInt(1, studentId);
             ps.setInt(2, guardianId);
             ps.setBoolean(3, isPrimary);
-            ps.setString(4, relationship);
+            ps.setBoolean(4, isEmergencyContact);
             return ps.executeUpdate() > 0;
         } catch (SQLException e) {
             ErrorLogger.log(StudentDao.class, "linkGuardian", e);
@@ -144,26 +144,29 @@ public class StudentDao {
         }
     }
 
-    // Update student data
+    // Update student contact info
     public boolean update(Student student) {
-        String sql = "UPDATE estudiantes SET tipo_documento = ?, numero_documento = ?, nombres = ?, apellidos = ?, "
-                + "fecha_nacimiento = ?, genero = ?, direccion = ?, telefono = ?, email = ?, estado = ? "
-                + "WHERE id_estudiante = ?";
+        String sql = "UPDATE estudiantes SET primer_nombre = ?, segundo_nombre = ?, primer_apellido = ?, "
+                + "segundo_apellido = ?, direccion = ?, telefono = ?, correo_electronico = ?, tipo_sangre = ?, "
+                + "alergias = ?, condiciones_medicas = ?, estado = ? WHERE id_estudiante = ?";
         try (Connection conn = DatabaseConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-
-            ps.setString(1, student.getDocumentType().getDbValue());
-            ps.setString(2, student.getDocumentNumber());
-            ps.setString(3, student.getFirstName());
-            ps.setString(4, student.getLastName());
-            ps.setDate(5, Date.valueOf(student.getBirthDate()));
-            ps.setString(6, student.getGender().getDbValue());
-            ps.setString(7, student.getAddress());
-            ps.setString(8, student.getPhone());
-            ps.setString(9, student.getEmail());
-            ps.setString(10, student.getStatus().getDbValue());
-            ps.setInt(11, student.getId());
-
+            ps.setString(1, student.getFirstName());
+            ps.setString(2, student.getMiddleName());
+            ps.setString(3, student.getLastName());
+            ps.setString(4, student.getSecondLastName());
+            ps.setString(5, student.getAddress());
+            ps.setString(6, student.getPhone());
+            if (student.getEmail() != null && !student.getEmail().isEmpty()) {
+                ps.setString(7, student.getEmail());
+            } else {
+                ps.setNull(7, Types.VARCHAR);
+            }
+            ps.setString(8, student.getBloodType());
+            ps.setString(9, student.getAllergies());
+            ps.setString(10, student.getMedicalConditions());
+            ps.setString(11, student.getStatus().getDbValue());
+            ps.setInt(12, student.getId());
             return ps.executeUpdate() > 0;
         } catch (SQLException e) {
             ErrorLogger.log(StudentDao.class, "update", e);
@@ -171,12 +174,11 @@ public class StudentDao {
         }
     }
 
-    // Update only student status
+    // Update student status only
     public boolean updateStatus(int studentId, StudentStatus status) {
         String sql = "UPDATE estudiantes SET estado = ? WHERE id_estudiante = ?";
         try (Connection conn = DatabaseConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-
             ps.setString(1, status.getDbValue());
             ps.setInt(2, studentId);
             return ps.executeUpdate() > 0;
@@ -186,12 +188,11 @@ public class StudentDao {
         }
     }
 
-    // Find student by id
+    // Find student by ID
     public Student findById(int id) {
         String sql = "SELECT * FROM estudiantes WHERE id_estudiante = ?";
         try (Connection conn = DatabaseConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-
             ps.setInt(1, id);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
@@ -209,7 +210,6 @@ public class StudentDao {
         String sql = "SELECT * FROM estudiantes WHERE numero_documento = ?";
         try (Connection conn = DatabaseConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-
             ps.setString(1, documentNumber);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
@@ -225,11 +225,10 @@ public class StudentDao {
     // List all students
     public List<Student> findAll() {
         List<Student> list = new ArrayList<>();
-        String sql = "SELECT * FROM estudiantes ORDER BY id_estudiante";
+        String sql = "SELECT * FROM estudiantes ORDER BY primer_apellido, primer_nombre";
         try (Connection conn = DatabaseConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
-
             while (rs.next()) {
                 list.add(this.mapRow(rs));
             }
@@ -239,15 +238,14 @@ public class StudentDao {
         return list;
     }
 
-    // Find students associated with a specific guardian (siblings support)
+    // Find students linked to a specific guardian (siblings support)
     public List<Student> findByGuardianId(int guardianId) {
         List<Student> list = new ArrayList<>();
         String sql = "SELECT e.* FROM estudiantes e "
                 + "INNER JOIN estudiante_acudiente ea ON e.id_estudiante = ea.id_estudiante "
-                + "WHERE ea.id_acudiente = ? ORDER BY e.nombres, e.apellidos";
+                + "WHERE ea.id_acudiente = ? ORDER BY e.primer_apellido, e.primer_nombre";
         try (Connection conn = DatabaseConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-
             ps.setInt(1, guardianId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
@@ -260,27 +258,31 @@ public class StudentDao {
         return list;
     }
 
-    // Helper to convert ResultSet row to Student object
     private Student mapRow(ResultSet rs) throws SQLException {
-        Student student = new Student();
-        student.setId(rs.getInt("id_estudiante"));
-        student.setDocumentType(DocumentType.fromDbValue(rs.getString("tipo_documento")));
-        student.setDocumentNumber(rs.getString("numero_documento"));
-        student.setFirstName(rs.getString("nombres"));
-        student.setLastName(rs.getString("apellidos"));
-        Date birth = rs.getDate("fecha_nacimiento");
-        if (birth != null) {
-            student.setBirthDate(birth.toLocalDate());
+        Student s = new Student();
+        s.setId(rs.getInt("id_estudiante"));
+        s.setDocumentType(DocumentType.fromDbValue(rs.getString("tipo_documento")));
+        s.setDocumentNumber(rs.getString("numero_documento"));
+        s.setFirstName(rs.getString("primer_nombre"));
+        s.setMiddleName(rs.getString("segundo_nombre"));
+        s.setLastName(rs.getString("primer_apellido"));
+        s.setSecondLastName(rs.getString("segundo_apellido"));
+        Date dob = rs.getDate("fecha_nacimiento");
+        if (dob != null) {
+            s.setBirthDate(dob.toLocalDate());
         }
-        student.setGender(Gender.fromDbValue(rs.getString("genero")));
-        student.setAddress(rs.getString("direccion"));
-        student.setPhone(rs.getString("telefono"));
-        student.setEmail(rs.getString("email"));
-        student.setStatus(StudentStatus.fromDbValue(rs.getString("estado")));
-        Timestamp ts = rs.getTimestamp("fecha_registro");
-        if (ts != null) {
-            student.setCreatedAt(ts.toLocalDateTime());
+        s.setGender(Gender.fromDbValue(rs.getString("genero")));
+        s.setAddress(rs.getString("direccion"));
+        s.setPhone(rs.getString("telefono"));
+        s.setEmail(rs.getString("correo_electronico"));
+        s.setBloodType(rs.getString("tipo_sangre"));
+        s.setAllergies(rs.getString("alergias"));
+        s.setMedicalConditions(rs.getString("condiciones_medicas"));
+        Date ing = rs.getDate("fecha_ingreso");
+        if (ing != null) {
+            s.setEnrollmentDate(ing.toLocalDate());
         }
-        return student;
+        s.setStatus(StudentStatus.fromDbValue(rs.getString("estado")));
+        return s;
     }
 }

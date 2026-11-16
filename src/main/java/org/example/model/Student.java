@@ -1,7 +1,6 @@
 package org.example.model;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 
 public class Student {
 
@@ -9,42 +8,26 @@ public class Student {
     private DocumentType documentType;
     private String documentNumber;
     private String firstName;
+    private String middleName;
     private String lastName;
+    private String secondLastName;
     private LocalDate birthDate;
     private Gender gender;
     private String address;
     private String phone;
     private String email;
-    private StudentStatus status = StudentStatus.ACTIVE;
-    private LocalDateTime createdAt;
+    private String bloodType;
+    private String allergies;
+    private String medicalConditions;
+    private LocalDate enrollmentDate;
+    private StudentStatus status;
 
-    // Empty constructor
     public Student() {
+        this.documentType = DocumentType.TI;
+        this.status = StudentStatus.ACTIVE;
+        this.enrollmentDate = LocalDate.now();
     }
 
-    // Constructor with main fields
-    public Student(int id, DocumentType documentType, String documentNumber, String firstName,
-                   String lastName, LocalDate birthDate, Gender gender, String address,
-                   String phone, String email, StudentStatus status) {
-        this.id = id;
-        this.documentType = documentType;
-        this.documentNumber = documentNumber;
-        this.firstName = firstName;
-        this.lastName = lastName;
-        this.birthDate = birthDate;
-        this.gender = gender;
-        this.address = address;
-        this.phone = phone;
-        this.email = email;
-        this.status = status;
-    }
-
-    // Helper method for full name
-    public String getFullName() {
-        return this.firstName + " " + this.lastName;
-    }
-
-    // Getters and Setters
     public int getId() {
         return this.id;
     }
@@ -77,12 +60,45 @@ public class Student {
         this.firstName = firstName;
     }
 
+    public String getMiddleName() {
+        return this.middleName;
+    }
+
+    public void setMiddleName(String middleName) {
+        this.middleName = middleName;
+    }
+
     public String getLastName() {
         return this.lastName;
     }
 
     public void setLastName(String lastName) {
         this.lastName = lastName;
+    }
+
+    public String getSecondLastName() {
+        return this.secondLastName;
+    }
+
+    public void setSecondLastName(String secondLastName) {
+        this.secondLastName = secondLastName;
+    }
+
+    public String getFullName() {
+        StringBuilder sb = new StringBuilder();
+        if (this.firstName != null && !this.firstName.isEmpty()) {
+            sb.append(this.firstName);
+        }
+        if (this.middleName != null && !this.middleName.isEmpty()) {
+            sb.append(" ").append(this.middleName);
+        }
+        if (this.lastName != null && !this.lastName.isEmpty()) {
+            sb.append(" ").append(this.lastName);
+        }
+        if (this.secondLastName != null && !this.secondLastName.isEmpty()) {
+            sb.append(" ").append(this.secondLastName);
+        }
+        return sb.toString().trim();
     }
 
     public LocalDate getBirthDate() {
@@ -125,6 +141,38 @@ public class Student {
         this.email = email;
     }
 
+    public String getBloodType() {
+        return this.bloodType;
+    }
+
+    public void setBloodType(String bloodType) {
+        this.bloodType = bloodType;
+    }
+
+    public String getAllergies() {
+        return this.allergies;
+    }
+
+    public void setAllergies(String allergies) {
+        this.allergies = allergies;
+    }
+
+    public String getMedicalConditions() {
+        return this.medicalConditions;
+    }
+
+    public void setMedicalConditions(String medicalConditions) {
+        this.medicalConditions = medicalConditions;
+    }
+
+    public LocalDate getEnrollmentDate() {
+        return this.enrollmentDate;
+    }
+
+    public void setEnrollmentDate(LocalDate enrollmentDate) {
+        this.enrollmentDate = enrollmentDate;
+    }
+
     public StudentStatus getStatus() {
         return this.status;
     }
@@ -133,22 +181,13 @@ public class Student {
         this.status = status;
     }
 
-    public LocalDateTime getCreatedAt() {
-        return this.createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
     @Override
     public String toString() {
-        String doc = (this.documentType != null) ? this.documentType.getDbValue() : "";
-        String st = (this.status != null) ? this.status.getDbValue() : "";
-        return "ID: " + this.id
-                + " | Doc: " + doc + " " + this.documentNumber
-                + " | Nombre: " + this.firstName + " " + this.lastName
-                + " | Estado: " + st
-                + " | Tel: " + this.phone;
+        String st = (this.status != null) ? this.status.getDbValue() : "N/A";
+        String dt = (this.documentType != null) ? this.documentType.getDbValue() : "";
+        return String.format("ID: %d | %s %s | %s | Nac: %s | Tel: %s | Sangre: %s | Estado: %s",
+                this.id, dt, this.documentNumber, this.getFullName(), this.birthDate,
+                this.phone != null ? this.phone : "-",
+                this.bloodType != null ? this.bloodType : "-", st);
     }
 }

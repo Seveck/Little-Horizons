@@ -11,23 +11,25 @@ import org.example.model.Attendance;
 import org.example.model.AttendanceStatus;
 import org.example.model.Student;
 import org.example.model.Subject;
+import org.example.model.Teacher;
 import org.example.util.InputValidator;
 
 import java.time.LocalDate;
+import java.util.InputMismatchException;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 
 public class AcademicView {
 
-    private final Scanner consola;
+    private final Scanner scanner;
     private final AcademicController academicController;
     private final StudentController studentController;
     private final TeacherController teacherController;
 
     // Constructor
-    public AcademicView(Scanner consola) {
-        this.consola = consola;
+    public AcademicView(Scanner scanner) {
+        this.scanner = scanner;
         this.academicController = new AcademicController();
         this.studentController = new StudentController();
         this.teacherController = new TeacherController();
@@ -46,34 +48,51 @@ public class AcademicView {
             System.out.println("5. Registrar asistencia diaria");
             System.out.println("6. Consultar historial de asistencia de un estudiante");
             System.out.println("7. Reporte de patrones de inasistencia (>3 ausencias en 1 semana)");
+            System.out.println("8. Corregir calificacion registrada");
+            System.out.println("9. Actualizar estado de asistencia");
             System.out.println("0. Volver al menu principal");
+            System.out.println("Digite su opcion:");
 
-            int opcion = InputValidator.readMenuOption(this.consola, 0, 7);
+            try {
+                int option = this.scanner.nextInt();
+                this.scanner.nextLine();
 
-            switch (opcion) {
-                case 1:
-                    this.recordGradeMenu();
-                    break;
-                case 2:
-                    this.studentAcademicHistoryMenu();
-                    break;
-                case 3:
-                    this.studentPeriodAverageMenu();
-                    break;
-                case 4:
-                    this.courseAverageMenu();
-                    break;
-                case 5:
-                    this.recordAttendanceMenu();
-                    break;
-                case 6:
-                    this.studentAttendanceHistoryMenu();
-                    break;
-                case 7:
-                    this.weeklyAbsenceReportMenu();
-                    break;
-                case 0:
-                    return;
+                switch (option) {
+                    case 1:
+                        this.recordGradeMenu();
+                        break;
+                    case 2:
+                        this.studentAcademicHistoryMenu();
+                        break;
+                    case 3:
+                        this.studentPeriodAverageMenu();
+                        break;
+                    case 4:
+                        this.courseAverageMenu();
+                        break;
+                    case 5:
+                        this.recordAttendanceMenu();
+                        break;
+                    case 6:
+                        this.studentAttendanceHistoryMenu();
+                        break;
+                    case 7:
+                        this.weeklyAbsenceReportMenu();
+                        break;
+                    case 8:
+                        this.updateGradeMenu();
+                        break;
+                    case 9:
+                        this.updateAttendanceMenu();
+                        break;
+                    case 0:
+                        return;
+                    default:
+                        System.out.println("Error, opcion invalida");
+                }
+            } catch (InputMismatchException e) {
+                System.out.println("Error, digito invalido");
+                this.scanner.nextLine();
             }
         }
     }
@@ -81,48 +100,63 @@ public class AcademicView {
     // 1. Record a grade (0.0 to 5.0)
     private void recordGradeMenu() {
         System.out.println("\n--- REGISTRAR CALIFICACION ---");
-        int studentId = InputValidator.readInt(this.consola, "ID del estudiante: ");
+        int studentId = InputValidator.readInt(this.scanner, "ID del estudiante: ");
         Student student = this.studentController.findStudentById(studentId);
         if (student == null) {
             System.out.println("Estudiante no encontrado.");
             return;
         }
-        int year = InputValidator.readIntRange(this.consola, "Año academico (ej. 2026): ", 2020, 2035);
+        System.out.println("Estudiante: " + student.getFullName());
 
-        List<String> subjects = this.teacherController.listStudentSubjects(studentId, year);
-        if (subjects.isEmpty()) {
-            System.out.println("El estudiante no tiene materias inscritas en " + year);
-            return;
+        List<Subject> allSubjects = this.teacherController.listAllSubjects();
+        for (Subject s : allSubjects) {
+            System.out.println(s.toString());
         }
-        System.out.println("Materias inscritas de " + student.getFullName() + ":");
-        for (String line : subjects) {
-            System.out.println(line);
-        }
-
-        int enrollmentId = InputValidator.readInt(this.consola, "Ingrese el ID de la inscripcion (Inscripcion ID): ");
-        if (this.teacherController.findSubjectEnrollmentById(enrollmentId) == null) {
-            System.out.println("Inscripcion no encontrada.");
+        int subjectId = InputValidator.readInt(this.scanner, "ID de la materia: ");
+        Subject subject = this.teacherController.findSubjectById(subjectId);
+        if (subject == null) {
+            System.out.println("Materia no encontrada.");
             return;
         }
 
+        int teacherId = InputValidator.readInt(this.scanner, "ID del profesor que califica: ");
+        Teacher teacher = this.teacherController.findTeacherById(teacherId);
+        if (teacher == null) {
+            System.out.println("Profesor no encontrado.");
+            return;
+        }
+
+        int year = InputValidator.readInt(this.scanner, "Año academico (ej. 2026): ");
         AcademicPeriod period = this.askPeriod();
-        double note = InputValidator.readDoubleRange(this.consola, "Valor de la nota (0.0 a 5.0): ", 0.0, 5.0);
-        double percentage = InputValidator.readDoubleRange(this.consola, "Porcentaje del periodo (ej. 25): ", 1.0, 100.0);
-        String remarks = InputValidator.readOptionalString(this.consola, "Observaciones: ");
+        double note = InputValidator.readPositiveDouble(this.scanner, "Valor de la nota (0.0 a 5.0): ");
+        while (note > 5.0) {
+            System.out.println("Error, la nota debe estar entre 0.0 y 5.0.");
+            note = InputValidator.readPositiveDouble(this.scanner, "Valor de la nota (0.0 a 5.0): ");
+        }
+        String observations = InputValidator.readOptionalString(this.scanner, "Observaciones: ");
 
-        AcademicRecord record = new AcademicRecord(0, enrollmentId, year, period, note, percentage, remarks);
+        AcademicRecord record = new AcademicRecord();
+        record.setStudentId(studentId);
+        record.setSubjectId(subjectId);
+        record.setTeacherId(teacherId);
+        record.setAcademicYear(year);
+        record.setPeriod(period);
+        record.setGradeValue(note);
+        record.setObservations(observations.isEmpty() ? null : observations);
+        record.setRecordDate(LocalDate.now());
+
         int id = this.academicController.recordGrade(record);
         if (id > 0) {
             System.out.println("Calificacion guardada correctamente. Registro ID: " + id);
         } else {
-            System.out.println("Error al guardar la calificacion.");
+            System.out.println("Error al guardar la calificacion (verifique si ya existe nota en ese periodo).");
         }
     }
 
     // 2. Academic history and average per subject (Streams)
     private void studentAcademicHistoryMenu() {
         System.out.println("\n--- HISTORIAL ACADEMICO Y PROMEDIO POR MATERIA ---");
-        int studentId = InputValidator.readInt(this.consola, "ID del estudiante: ");
+        int studentId = InputValidator.readInt(this.scanner, "ID del estudiante: ");
         Student student = this.studentController.findStudentById(studentId);
         if (student == null) {
             System.out.println("Estudiante no encontrado.");
@@ -131,7 +165,7 @@ public class AcademicView {
 
         System.out.println("1. Consultar todo el historial desde su ingreso");
         System.out.println("2. Filtrar por un año academico especifico");
-        int op = InputValidator.readMenuOption(this.consola, 1, 2);
+        int op = InputValidator.readInt(this.scanner, "Digite su opcion: ");
 
         List<GradeDetail> history;
         Map<String, Double> avgBySubject;
@@ -139,7 +173,7 @@ public class AcademicView {
             history = this.academicController.getFullStudentAcademicHistory(studentId);
             avgBySubject = this.academicController.calculateFullStudentAverageBySubject(studentId);
         } else {
-            int year = InputValidator.readIntRange(this.consola, "Año academico (ej. 2026): ", 2020, 2035);
+            int year = InputValidator.readInt(this.scanner, "Año academico (ej. 2026): ");
             history = this.academicController.getStudentAcademicHistory(studentId, year);
             avgBySubject = this.academicController.calculateStudentAverageBySubject(studentId, year);
         }
@@ -162,13 +196,13 @@ public class AcademicView {
     // 3. Overall student average in a specific period (Streams)
     private void studentPeriodAverageMenu() {
         System.out.println("\n--- PROMEDIO GENERAL DEL ESTUDIANTE EN UN PERIODO ---");
-        int studentId = InputValidator.readInt(this.consola, "ID del estudiante: ");
+        int studentId = InputValidator.readInt(this.scanner, "ID del estudiante: ");
         Student student = this.studentController.findStudentById(studentId);
         if (student == null) {
             System.out.println("Estudiante no encontrado.");
             return;
         }
-        int year = InputValidator.readIntRange(this.consola, "Año academico (ej. 2026): ", 2020, 2035);
+        int year = InputValidator.readInt(this.scanner, "Año academico (ej. 2026): ");
         AcademicPeriod period = this.askPeriod();
 
         double avg = this.academicController.calculateStudentPeriodAverage(studentId, year, period);
@@ -183,13 +217,13 @@ public class AcademicView {
     // 4. Course average by subject (Streams)
     private void courseAverageMenu() {
         System.out.println("\n--- PROMEDIO DEL CURSO POR MATERIA ---");
-        int year = InputValidator.readIntRange(this.consola, "Año academico (ej. 2026): ", 2020, 2035);
+        int year = InputValidator.readInt(this.scanner, "Año academico (ej. 2026): ");
         System.out.println("1. Consultar una materia especifica");
         System.out.println("2. Ver resumen de todas las materias con notas");
-        int op = InputValidator.readMenuOption(this.consola, 1, 2);
+        int op = InputValidator.readInt(this.scanner, "Digite su opcion: ");
 
         if (op == 1) {
-            int subjectId = InputValidator.readInt(this.consola, "ID de la materia: ");
+            int subjectId = InputValidator.readInt(this.scanner, "ID de la materia: ");
             Subject s = this.teacherController.findSubjectById(subjectId);
             if (s == null) {
                 System.out.println("Materia no encontrada.");
@@ -213,45 +247,54 @@ public class AcademicView {
     // 5. Record daily attendance
     private void recordAttendanceMenu() {
         System.out.println("\n--- REGISTRAR ASISTENCIA DIARIA ---");
-        int studentId = InputValidator.readInt(this.consola, "ID del estudiante: ");
+        int studentId = InputValidator.readInt(this.scanner, "ID del estudiante: ");
         Student student = this.studentController.findStudentById(studentId);
         if (student == null) {
             System.out.println("Estudiante no encontrado.");
             return;
         }
-        int year = InputValidator.readIntRange(this.consola, "Año academico (ej. 2026): ", 2020, 2035);
-        List<String> assignments = this.teacherController.listAssignmentsByYear(year);
-        if (assignments.isEmpty()) {
-            System.out.println("No hay asignaciones disponibles.");
-            return;
-        }
-        for (String line : assignments) {
-            System.out.println(line);
-        }
+        System.out.println("Estudiante: " + student.getFullName());
 
-        int assignmentId = InputValidator.readInt(this.consola, "ID de la asignacion (clase): ");
-        if (this.teacherController.findAssignmentById(assignmentId) == null) {
-            System.out.println("Asignacion no encontrada.");
+        List<Subject> subjects = this.teacherController.listAllSubjects();
+        for (Subject s : subjects) {
+            System.out.println(s.toString());
+        }
+        int subjectId = InputValidator.readInt(this.scanner, "ID de la materia: ");
+        if (this.teacherController.findSubjectById(subjectId) == null) {
+            System.out.println("Materia no encontrada.");
             return;
         }
 
-        LocalDate date = InputValidator.readDate(this.consola, "Fecha (AAAA-MM-DD): ");
+        int teacherId = InputValidator.readInt(this.scanner, "ID del profesor que registra: ");
+        if (this.teacherController.findTeacherById(teacherId) == null) {
+            System.out.println("Profesor no encontrado.");
+            return;
+        }
+
+        LocalDate date = InputValidator.readDate(this.scanner, "Fecha (AAAA-MM-DD): ");
         AttendanceStatus status = this.askAttendanceStatus();
-        String remarks = InputValidator.readOptionalString(this.consola, "Observaciones: ");
+        String observations = InputValidator.readOptionalString(this.scanner, "Observaciones: ");
 
-        Attendance att = new Attendance(0, studentId, assignmentId, date, status, remarks);
+        Attendance att = new Attendance();
+        att.setStudentId(studentId);
+        att.setSubjectId(subjectId);
+        att.setAttendanceDate(date);
+        att.setStatus(status);
+        att.setObservations(observations.isEmpty() ? null : observations);
+        att.setRecordedBy(teacherId);
+
         int id = this.academicController.recordAttendance(att);
         if (id > 0) {
             System.out.println("Asistencia registrada con exito. ID: " + id);
         } else {
-            System.out.println("Error al registrar asistencia (verifique si ya existe asistencia ese dia en esa clase).");
+            System.out.println("Error al registrar asistencia (verifique si ya existe asistencia ese dia en esa materia).");
         }
     }
 
     // 6. Student attendance history
     private void studentAttendanceHistoryMenu() {
         System.out.println("\n--- HISTORIAL DE ASISTENCIA DE ESTUDIANTE ---");
-        int studentId = InputValidator.readInt(this.consola, "ID del estudiante: ");
+        int studentId = InputValidator.readInt(this.scanner, "ID del estudiante: ");
         List<AttendanceDetail> list = this.academicController.getStudentAttendance(studentId);
         if (list.isEmpty()) {
             System.out.println("No hay registros de asistencia para ese estudiante.");
@@ -275,9 +318,41 @@ public class AcademicView {
         }
     }
 
+    // 8. Update existing grade record
+    private void updateGradeMenu() {
+        System.out.println("\n--- CORREGIR CALIFICACION REGISTRADA ---");
+        int recordId = InputValidator.readInt(this.scanner, "ID del registro academico: ");
+        double newGrade = InputValidator.readPositiveDouble(this.scanner, "Nueva nota (0.0 a 5.0): ");
+        while (newGrade > 5.0) {
+            System.out.println("Error, la nota debe estar entre 0.0 y 5.0.");
+            newGrade = InputValidator.readPositiveDouble(this.scanner, "Nueva nota (0.0 a 5.0): ");
+        }
+        String observations = InputValidator.readOptionalString(this.scanner, "Observaciones actualizadas: ");
+
+        if (this.academicController.updateGrade(recordId, newGrade, observations.isEmpty() ? null : observations)) {
+            System.out.println("Calificacion actualizada correctamente.");
+        } else {
+            System.out.println("No se encontro un registro con ese ID.");
+        }
+    }
+
+    // 9. Update existing attendance record
+    private void updateAttendanceMenu() {
+        System.out.println("\n--- ACTUALIZAR ESTADO DE ASISTENCIA ---");
+        int attendanceId = InputValidator.readInt(this.scanner, "ID de la asistencia: ");
+        AttendanceStatus status = this.askAttendanceStatus();
+        String observations = InputValidator.readOptionalString(this.scanner, "Observaciones actualizadas: ");
+
+        if (this.academicController.updateAttendanceStatus(attendanceId, status, observations.isEmpty() ? null : observations)) {
+            System.out.println("Asistencia actualizada correctamente.");
+        } else {
+            System.out.println("No se encontro una asistencia con ese ID.");
+        }
+    }
+
     private AcademicPeriod askPeriod() {
         System.out.println("Seleccione periodo (1. I | 2. II | 3. III | 4. IV | 5. Final):");
-        int op = InputValidator.readMenuOption(this.consola, 1, 5);
+        int op = InputValidator.readInt(this.scanner, "Digite su opcion: ");
         if (op == 1) return AcademicPeriod.FIRST;
         if (op == 2) return AcademicPeriod.SECOND;
         if (op == 3) return AcademicPeriod.THIRD;
@@ -286,8 +361,8 @@ public class AcademicView {
     }
 
     private AttendanceStatus askAttendanceStatus() {
-        System.out.println("Estado (1. Presente | 2. Ausente | 3. Tardanza | 4. Excusa Médica):");
-        int op = InputValidator.readMenuOption(this.consola, 1, 4);
+        System.out.println("Estado (1. Presente | 2. Ausente | 3. Tardanza | 4. Excusa Medica):");
+        int op = InputValidator.readInt(this.scanner, "Digite su opcion: ");
         if (op == 1) return AttendanceStatus.PRESENT;
         if (op == 2) return AttendanceStatus.ABSENT;
         if (op == 3) return AttendanceStatus.LATE;

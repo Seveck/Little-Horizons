@@ -1,10 +1,9 @@
 package org.example.model;
 
 public enum EnrollmentStatus {
-    ENROLLED("Matriculado"),
-    PROMOTED("Promovido"),
-    FAILED("Reprobado"),
-    WITHDRAWN("Retirado");
+    ACTIVE("Activa"),
+    COMPLETED("Completada"),
+    WITHDRAWN("Retirada");
 
     private final String dbValue;
 
@@ -22,6 +21,6 @@ public enum EnrollmentStatus {
                 return status;
             }
         }
-        return ENROLLED;
+        return ACTIVE;
     }
 }

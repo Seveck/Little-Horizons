@@ -15,32 +15,33 @@ import java.util.List;
 
 public class GuardianDao {
 
-    // Insert a new guardian and return generated id
+    // Insert a new guardian
     public int insert(Guardian guardian) {
-        String sql = "INSERT INTO acudientes (tipo_documento, numero_documento, nombres, apellidos, "
-                + "parentesco, telefono, email, direccion, profesion_ocupacion) "
-                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO acudientes (tipo_documento, numero_documento, primer_nombre, segundo_nombre, "
+                + "primer_apellido, segundo_apellido, parentesco, telefono_principal, telefono_secundario, "
+                + "correo_electronico, direccion, ocupacion, es_responsable_financiero) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (Connection conn = DatabaseConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-
             ps.setString(1, guardian.getDocumentType().getDbValue());
             ps.setString(2, guardian.getDocumentNumber());
             ps.setString(3, guardian.getFirstName());
-            ps.setString(4, guardian.getLastName());
-            ps.setString(5, guardian.getRelationship());
-            ps.setString(6, guardian.getPhone());
-            ps.setString(7, guardian.getEmail());
-            ps.setString(8, guardian.getAddress());
-            ps.setString(9, guardian.getOccupation());
-
-            int rows = ps.executeUpdate();
-            if (rows > 0) {
-                try (ResultSet rs = ps.getGeneratedKeys()) {
-                    if (rs.next()) {
-                        int id = rs.getInt(1);
-                        guardian.setId(id);
-                        return id;
-                    }
+            ps.setString(4, guardian.getMiddleName());
+            ps.setString(5, guardian.getLastName());
+            ps.setString(6, guardian.getSecondLastName());
+            ps.setString(7, guardian.getRelationship());
+            ps.setString(8, guardian.getPrimaryPhone());
+            ps.setString(9, guardian.getSecondaryPhone());
+            ps.setString(10, guardian.getEmail());
+            ps.setString(11, guardian.getAddress());
+            ps.setString(12, guardian.getOccupation());
+            ps.setBoolean(13, guardian.isFinancialResponsible());
+            ps.executeUpdate();
+            try (ResultSet rs = ps.getGeneratedKeys()) {
+                if (rs.next()) {
+                    int id = rs.getInt(1);
+                    guardian.setId(id);
+                    return id;
                 }
             }
         } catch (SQLException e) {
@@ -51,23 +52,24 @@ public class GuardianDao {
 
     // Update guardian details
     public boolean update(Guardian guardian) {
-        String sql = "UPDATE acudientes SET tipo_documento = ?, numero_documento = ?, nombres = ?, apellidos = ?, "
-                + "parentesco = ?, telefono = ?, email = ?, direccion = ?, profesion_ocupacion = ? "
+        String sql = "UPDATE acudientes SET primer_nombre = ?, segundo_nombre = ?, primer_apellido = ?, "
+                + "segundo_apellido = ?, parentesco = ?, telefono_principal = ?, telefono_secundario = ?, "
+                + "correo_electronico = ?, direccion = ?, ocupacion = ?, es_responsable_financiero = ? "
                 + "WHERE id_acudiente = ?";
         try (Connection conn = DatabaseConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-
-            ps.setString(1, guardian.getDocumentType().getDbValue());
-            ps.setString(2, guardian.getDocumentNumber());
-            ps.setString(3, guardian.getFirstName());
-            ps.setString(4, guardian.getLastName());
+            ps.setString(1, guardian.getFirstName());
+            ps.setString(2, guardian.getMiddleName());
+            ps.setString(3, guardian.getLastName());
+            ps.setString(4, guardian.getSecondLastName());
             ps.setString(5, guardian.getRelationship());
-            ps.setString(6, guardian.getPhone());
-            ps.setString(7, guardian.getEmail());
-            ps.setString(8, guardian.getAddress());
-            ps.setString(9, guardian.getOccupation());
-            ps.setInt(10, guardian.getId());
-
+            ps.setString(6, guardian.getPrimaryPhone());
+            ps.setString(7, guardian.getSecondaryPhone());
+            ps.setString(8, guardian.getEmail());
+            ps.setString(9, guardian.getAddress());
+            ps.setString(10, guardian.getOccupation());
+            ps.setBoolean(11, guardian.isFinancialResponsible());
+            ps.setInt(12, guardian.getId());
             return ps.executeUpdate() > 0;
         } catch (SQLException e) {
             ErrorLogger.log(GuardianDao.class, "update", e);
@@ -75,12 +77,11 @@ public class GuardianDao {
         }
     }
 
-    // Find guardian by id
+    // Find guardian by ID
     public Guardian findById(int id) {
         String sql = "SELECT * FROM acudientes WHERE id_acudiente = ?";
         try (Connection conn = DatabaseConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-
             ps.setInt(1, id);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
@@ -98,7 +99,6 @@ public class GuardianDao {
         String sql = "SELECT * FROM acudientes WHERE numero_documento = ?";
         try (Connection conn = DatabaseConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-
             ps.setString(1, documentNumber);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
@@ -114,11 +114,10 @@ public class GuardianDao {
     // List all guardians
     public List<Guardian> findAll() {
         List<Guardian> list = new ArrayList<>();
-        String sql = "SELECT * FROM acudientes ORDER BY id_acudiente";
+        String sql = "SELECT * FROM acudientes ORDER BY primer_apellido, primer_nombre";
         try (Connection conn = DatabaseConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
-
             while (rs.next()) {
                 list.add(this.mapRow(rs));
             }
@@ -128,7 +127,7 @@ public class GuardianDao {
         return list;
     }
 
-    // List guardians associated with a student
+    // Find guardians linked to a student (principal first)
     public List<Guardian> findByStudentId(int studentId) {
         List<Guardian> list = new ArrayList<>();
         String sql = "SELECT a.* FROM acudientes a "
@@ -136,7 +135,6 @@ public class GuardianDao {
                 + "WHERE ea.id_estudiante = ? ORDER BY ea.es_principal DESC";
         try (Connection conn = DatabaseConnection.getInstance().getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-
             ps.setInt(1, studentId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
@@ -149,19 +147,22 @@ public class GuardianDao {
         return list;
     }
 
-    // Helper to convert ResultSet row to Guardian object
     private Guardian mapRow(ResultSet rs) throws SQLException {
         Guardian g = new Guardian();
         g.setId(rs.getInt("id_acudiente"));
         g.setDocumentType(DocumentType.fromDbValue(rs.getString("tipo_documento")));
         g.setDocumentNumber(rs.getString("numero_documento"));
-        g.setFirstName(rs.getString("nombres"));
-        g.setLastName(rs.getString("apellidos"));
+        g.setFirstName(rs.getString("primer_nombre"));
+        g.setMiddleName(rs.getString("segundo_nombre"));
+        g.setLastName(rs.getString("primer_apellido"));
+        g.setSecondLastName(rs.getString("segundo_apellido"));
         g.setRelationship(rs.getString("parentesco"));
-        g.setPhone(rs.getString("telefono"));
-        g.setEmail(rs.getString("email"));
+        g.setPrimaryPhone(rs.getString("telefono_principal"));
+        g.setSecondaryPhone(rs.getString("telefono_secundario"));
+        g.setEmail(rs.getString("correo_electronico"));
         g.setAddress(rs.getString("direccion"));
-        g.setOccupation(rs.getString("profesion_ocupacion"));
+        g.setOccupation(rs.getString("ocupacion"));
+        g.setFinancialResponsible(rs.getBoolean("es_responsable_financiero"));
         return g;
     }
 }

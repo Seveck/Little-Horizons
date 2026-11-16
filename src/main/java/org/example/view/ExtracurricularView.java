@@ -4,30 +4,31 @@ import org.example.controller.ExtracurricularController;
 import org.example.controller.StudentController;
 import org.example.controller.TeacherController;
 import org.example.model.Club;
-import org.example.model.ClubStatus;
 import org.example.model.Event;
 import org.example.model.EventParticipant;
 import org.example.model.EventRank;
+import org.example.model.EventRole;
 import org.example.model.EventType;
 import org.example.model.Student;
 import org.example.model.Teacher;
 import org.example.util.InputValidator;
 
 import java.time.LocalDate;
+import java.util.InputMismatchException;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 
 public class ExtracurricularView {
 
-    private final Scanner consola;
+    private final Scanner scanner;
     private final ExtracurricularController controller;
     private final StudentController studentController;
     private final TeacherController teacherController;
 
     // Constructor
-    public ExtracurricularView(Scanner consola) {
-        this.consola = consola;
+    public ExtracurricularView(Scanner scanner) {
+        this.scanner = scanner;
         this.controller = new ExtracurricularController();
         this.studentController = new StudentController();
         this.teacherController = new TeacherController();
@@ -50,42 +51,51 @@ public class ExtracurricularView {
             System.out.println("9. Actualizar puesto de participante en competencia");
             System.out.println("10. Consultar participacion y resumen de eventos");
             System.out.println("0. Volver al menu principal");
+            System.out.println("Digite su opcion:");
 
-            int opcion = InputValidator.readMenuOption(this.consola, 0, 10);
+            try {
+                int option = this.scanner.nextInt();
+                this.scanner.nextLine();
 
-            switch (opcion) {
-                case 1:
-                    this.registerClubMenu();
-                    break;
-                case 2:
-                    this.listClubsMenu();
-                    break;
-                case 3:
-                    this.enrollStudentInClubMenu();
-                    break;
-                case 4:
-                    this.withdrawStudentFromClubMenu();
-                    break;
-                case 5:
-                    this.queryClubMembershipMenu();
-                    break;
-                case 6:
-                    this.registerEventMenu();
-                    break;
-                case 7:
-                    this.listEventsMenu();
-                    break;
-                case 8:
-                    this.registerParticipantMenu();
-                    break;
-                case 9:
-                    this.updateParticipantRankMenu();
-                    break;
-                case 10:
-                    this.eventReportsMenu();
-                    break;
-                case 0:
-                    return;
+                switch (option) {
+                    case 1:
+                        this.registerClubMenu();
+                        break;
+                    case 2:
+                        this.listClubsMenu();
+                        break;
+                    case 3:
+                        this.enrollStudentInClubMenu();
+                        break;
+                    case 4:
+                        this.withdrawStudentFromClubMenu();
+                        break;
+                    case 5:
+                        this.queryClubMembershipMenu();
+                        break;
+                    case 6:
+                        this.registerEventMenu();
+                        break;
+                    case 7:
+                        this.listEventsMenu();
+                        break;
+                    case 8:
+                        this.registerParticipantMenu();
+                        break;
+                    case 9:
+                        this.updateParticipantRankMenu();
+                        break;
+                    case 10:
+                        this.eventReportsMenu();
+                        break;
+                    case 0:
+                        return;
+                    default:
+                        System.out.println("Error, opcion invalida");
+                }
+            } catch (InputMismatchException e) {
+                System.out.println("Error, digito invalido");
+                this.scanner.nextLine();
             }
         }
     }
@@ -93,10 +103,10 @@ public class ExtracurricularView {
     // 1. Register new club
     private void registerClubMenu() {
         System.out.println("\n--- REGISTRAR NUEVO CLUB ---");
-        String name = InputValidator.readString(this.consola, "Nombre del club: ");
-        String desc = InputValidator.readOptionalString(this.consola, "Descripcion breve: ");
+        String name = InputValidator.readString(this.scanner, "Nombre del club: ");
+        String desc = InputValidator.readOptionalString(this.scanner, "Descripcion breve: ");
 
-        int teacherId = InputValidator.readInt(this.consola, "ID del profesor encargado: ");
+        int teacherId = InputValidator.readInt(this.scanner, "ID del profesor encargado: ");
         Teacher teacher = this.teacherController.findTeacherById(teacherId);
         if (teacher == null) {
             System.out.println("Profesor no encontrado.");
@@ -104,11 +114,17 @@ public class ExtracurricularView {
         }
         System.out.println("Profesor encargado: " + teacher.getFullName());
 
-        int maxCap = InputValidator.readIntRange(this.consola, "Cupo maximo (5 - 200): ", 5, 200);
-        String schedule = InputValidator.readString(this.consola, "Horario de reunion (ej. Viernes 15:00 - 16:30): ");
-        String location = InputValidator.readString(this.consola, "Lugar de reunion: ");
+        int maxCap = InputValidator.readInt(this.scanner, "Cupo maximo (ej. 30): ");
+        String schedule = InputValidator.readString(this.scanner, "Horario de reunion (ej. Viernes 3:00-5:00 PM): ");
 
-        Club club = new Club(0, name, desc, teacherId, maxCap, schedule, location, ClubStatus.ACTIVE);
+        Club club = new Club();
+        club.setName(name);
+        club.setDescription(desc.isEmpty() ? null : desc);
+        club.setSupervisorTeacherId(teacherId);
+        club.setMaxCapacity(maxCap);
+        club.setMeetingSchedule(schedule);
+        club.setActive(true);
+
         int id = this.controller.registerClub(club);
         if (id > 0) {
             System.out.println("Club registrado exitosamente. ID: " + id);
@@ -122,7 +138,7 @@ public class ExtracurricularView {
         System.out.println("\n--- CATALOGO DE CLUBES ---");
         System.out.println("1. Ver solo clubes activos");
         System.out.println("2. Ver todos los clubes");
-        int op = InputValidator.readMenuOption(this.consola, 1, 2);
+        int op = InputValidator.readInt(this.scanner, "Digite su opcion: ");
 
         List<Club> clubs = (op == 1) ? this.controller.listActiveClubs() : this.controller.listAllClubs();
         if (clubs.isEmpty()) {
@@ -139,7 +155,7 @@ public class ExtracurricularView {
     // 3. Enroll student in club (validates max capacity)
     private void enrollStudentInClubMenu() {
         System.out.println("\n--- INSCRIBIR ESTUDIANTE EN CLUB ---");
-        int clubId = InputValidator.readInt(this.consola, "ID del club: ");
+        int clubId = InputValidator.readInt(this.scanner, "ID del club: ");
         Club club = this.controller.findClubById(clubId);
         if (club == null) {
             System.out.println("Club no encontrado.");
@@ -148,7 +164,7 @@ public class ExtracurricularView {
         int freeSpots = this.controller.getAvailableSpots(clubId);
         System.out.println("Club: " + club.getName() + " | Cupos libres: " + freeSpots);
 
-        int studentId = InputValidator.readInt(this.consola, "ID del estudiante: ");
+        int studentId = InputValidator.readInt(this.scanner, "ID del estudiante: ");
         Student student = this.studentController.findStudentById(studentId);
         if (student == null) {
             System.out.println("Estudiante no encontrado.");
@@ -156,17 +172,17 @@ public class ExtracurricularView {
         }
         System.out.println("Estudiante: " + student.getFullName());
 
-        LocalDate joinDate = InputValidator.readDate(this.consola, "Fecha de ingreso (AAAA-MM-DD): ");
+        LocalDate joinDate = InputValidator.readDate(this.scanner, "Fecha de ingreso (AAAA-MM-DD): ");
         int result = this.controller.enrollStudentInClub(clubId, studentId, joinDate);
 
         if (result > 0) {
             System.out.println("Inscripcion al club exitosa. Membresia ID: " + result);
         } else if (result == -2) {
-            System.out.println("No se pudo inscribir: el club alcanzo su cupo maximo (" + club.getMaxCapacity() + ").");
+            System.out.println("El club se encuentra inactivo o no existe.");
         } else if (result == -3) {
-            System.out.println("El estudiante ya tiene una membresia activa en este club.");
+            System.out.println("No se pudo inscribir: el club alcanzo su cupo maximo (" + club.getMaxCapacity() + ").");
         } else if (result == -4) {
-            System.out.println("El club se encuentra inactivo.");
+            System.out.println("El estudiante ya tiene una membresia activa en este club.");
         } else {
             System.out.println("Error al inscribir estudiante en el club.");
         }
@@ -175,8 +191,8 @@ public class ExtracurricularView {
     // 4. Withdraw student from club
     private void withdrawStudentFromClubMenu() {
         System.out.println("\n--- RETIRAR ESTUDIANTE DE CLUB ---");
-        int clubId = InputValidator.readInt(this.consola, "ID del club: ");
-        int studentId = InputValidator.readInt(this.consola, "ID del estudiante: ");
+        int clubId = InputValidator.readInt(this.scanner, "ID del club: ");
+        int studentId = InputValidator.readInt(this.scanner, "ID del estudiante: ");
 
         if (this.controller.withdrawStudentFromClub(clubId, studentId)) {
             System.out.println("Estudiante retirado del club correctamente.");
@@ -190,10 +206,10 @@ public class ExtracurricularView {
         System.out.println("\n--- CONSULTA DE MEMBRESIAS ---");
         System.out.println("1. Ver miembros inscritos de un club");
         System.out.println("2. Ver clubes en los que participa un estudiante");
-        int op = InputValidator.readMenuOption(this.consola, 1, 2);
+        int op = InputValidator.readInt(this.scanner, "Digite su opcion: ");
 
         if (op == 1) {
-            int clubId = InputValidator.readInt(this.consola, "ID del club: ");
+            int clubId = InputValidator.readInt(this.scanner, "ID del club: ");
             List<String> members = this.controller.listClubMembers(clubId);
             if (members.isEmpty()) {
                 System.out.println("No hay miembros registrados en ese club.");
@@ -203,7 +219,7 @@ public class ExtracurricularView {
                 System.out.println(line);
             }
         } else {
-            int studentId = InputValidator.readInt(this.consola, "ID del estudiante: ");
+            int studentId = InputValidator.readInt(this.scanner, "ID del estudiante: ");
             List<String> clubs = this.controller.listStudentClubs(studentId);
             if (clubs.isEmpty()) {
                 System.out.println("El estudiante no pertenece a ningun club.");
@@ -218,14 +234,24 @@ public class ExtracurricularView {
     // 6. Register new event
     private void registerEventMenu() {
         System.out.println("\n--- REGISTRAR NUEVO EVENTO ---");
-        String name = InputValidator.readString(this.consola, "Nombre del evento: ");
+        String name = InputValidator.readString(this.scanner, "Nombre del evento: ");
         EventType type = this.askEventType();
-        String desc = InputValidator.readOptionalString(this.consola, "Descripcion: ");
-        LocalDate eventDate = InputValidator.readDate(this.consola, "Fecha del evento (AAAA-MM-DD): ");
-        String location = InputValidator.readString(this.consola, "Lugar del evento: ");
-        boolean hasCompetition = InputValidator.readConfirmation(this.consola, "¿El evento tiene competencia y puestos?");
+        String desc = InputValidator.readOptionalString(this.scanner, "Descripcion: ");
+        LocalDate eventDate = InputValidator.readDate(this.scanner, "Fecha del evento (AAAA-MM-DD): ");
+        String location = InputValidator.readString(this.scanner, "Lugar del evento: ");
+        boolean hasCompetition = InputValidator.readConfirmation(this.scanner, "¿El evento tiene competencia y puestos?");
+        int organizerId = InputValidator.readInt(this.scanner, "ID del profesor organizador (0 si no aplica): ");
 
-        Event ev = new Event(0, name, type, desc, eventDate, location, hasCompetition);
+        Event ev = new Event();
+        ev.setName(name);
+        ev.setEventType(type);
+        ev.setDescription(desc.isEmpty() ? null : desc);
+        ev.setEventDate(eventDate);
+        ev.setLocation(location);
+        ev.setHasCompetition(hasCompetition);
+        ev.setOrganizerTeacherId(organizerId);
+        ev.setActive(true);
+
         int id = this.controller.registerEvent(ev);
         if (id > 0) {
             System.out.println("Evento registrado exitosamente. ID: " + id);
@@ -240,7 +266,7 @@ public class ExtracurricularView {
         System.out.println("1. Ver todos los eventos");
         System.out.println("2. Filtrar por tipo de evento");
         System.out.println("3. Ver solo eventos con competencia");
-        int op = InputValidator.readMenuOption(this.consola, 1, 3);
+        int op = InputValidator.readInt(this.scanner, "Digite su opcion: ");
 
         List<Event> events;
         if (op == 1) {
@@ -264,7 +290,7 @@ public class ExtracurricularView {
     // 8. Register student participant in event
     private void registerParticipantMenu() {
         System.out.println("\n--- REGISTRAR PARTICIPANTE EN EVENTO ---");
-        int eventId = InputValidator.readInt(this.consola, "ID del evento: ");
+        int eventId = InputValidator.readInt(this.scanner, "ID del evento: ");
         Event ev = this.controller.findEventById(eventId);
         if (ev == null) {
             System.out.println("Evento no encontrado.");
@@ -272,7 +298,7 @@ public class ExtracurricularView {
         }
         System.out.println("Evento: " + ev.getName() + " | Competencia: " + (ev.isHasCompetition() ? "Si" : "No"));
 
-        int studentId = InputValidator.readInt(this.consola, "ID del estudiante: ");
+        int studentId = InputValidator.readInt(this.scanner, "ID del estudiante: ");
         Student student = this.studentController.findStudentById(studentId);
         if (student == null) {
             System.out.println("Estudiante no encontrado.");
@@ -280,10 +306,17 @@ public class ExtracurricularView {
         }
         System.out.println("Estudiante: " + student.getFullName());
 
+        EventRole role = ev.isHasCompetition() ? EventRole.COMPETITOR : EventRole.PARTICIPANT;
         EventRank rank = ev.isHasCompetition() ? this.askEventRank() : EventRank.PARTICIPANT;
-        String remarks = InputValidator.readOptionalString(this.consola, "Observaciones (ej. proyecto o categoria): ");
+        String observations = InputValidator.readOptionalString(this.scanner, "Observaciones (ej. proyecto o categoria): ");
 
-        EventParticipant ep = new EventParticipant(0, eventId, studentId, rank, remarks);
+        EventParticipant ep = new EventParticipant();
+        ep.setEventId(eventId);
+        ep.setStudentId(studentId);
+        ep.setRole(role);
+        ep.setRank(rank.getDbValue());
+        ep.setObservations(observations.isEmpty() ? null : observations);
+
         int id = this.controller.registerParticipant(ep);
         if (id > 0) {
             System.out.println("Participante registrado exitosamente. ID: " + id);
@@ -295,7 +328,7 @@ public class ExtracurricularView {
     // 9. Update competition position of a participant
     private void updateParticipantRankMenu() {
         System.out.println("\n--- ACTUALIZAR PUESTO EN COMPETENCIA ---");
-        int eventId = InputValidator.readInt(this.consola, "ID del evento: ");
+        int eventId = InputValidator.readInt(this.scanner, "ID del evento: ");
         Event ev = this.controller.findEventById(eventId);
         if (ev == null) {
             System.out.println("Evento no encontrado.");
@@ -306,9 +339,9 @@ public class ExtracurricularView {
             return;
         }
 
-        int studentId = InputValidator.readInt(this.consola, "ID del estudiante: ");
+        int studentId = InputValidator.readInt(this.scanner, "ID del estudiante: ");
         EventRank newRank = this.askEventRank();
-        String remarks = InputValidator.readOptionalString(this.consola, "Observaciones actualizadas: ");
+        String remarks = InputValidator.readOptionalString(this.scanner, "Observaciones actualizadas: ");
 
         if (this.controller.updateParticipantRank(eventId, studentId, newRank, remarks)) {
             System.out.println("Puesto actualizado exitosamente.");
@@ -323,10 +356,10 @@ public class ExtracurricularView {
         System.out.println("1. Ver participantes de un evento");
         System.out.println("2. Ver historial de eventos de un estudiante");
         System.out.println("3. Ver resumen de eventos por tipo");
-        int op = InputValidator.readMenuOption(this.consola, 1, 3);
+        int op = InputValidator.readInt(this.scanner, "Digite su opcion: ");
 
         if (op == 1) {
-            int eventId = InputValidator.readInt(this.consola, "ID del evento: ");
+            int eventId = InputValidator.readInt(this.scanner, "ID del evento: ");
             List<String> list = this.controller.listEventParticipants(eventId);
             if (list.isEmpty()) {
                 System.out.println("No hay participantes registrados en este evento.");
@@ -336,7 +369,7 @@ public class ExtracurricularView {
                 System.out.println(line);
             }
         } else if (op == 2) {
-            int studentId = InputValidator.readInt(this.consola, "ID del estudiante: ");
+            int studentId = InputValidator.readInt(this.scanner, "ID del estudiante: ");
             List<String> list = this.controller.listStudentEvents(studentId);
             if (list.isEmpty()) {
                 System.out.println("El estudiante no registra participacion en eventos.");
@@ -355,7 +388,7 @@ public class ExtracurricularView {
 
     private EventType askEventType() {
         System.out.println("Tipo de evento (1. Academico | 2. Cultural | 3. Deportivo | 4. Social | 5. Cientifico):");
-        int op = InputValidator.readMenuOption(this.consola, 1, 5);
+        int op = InputValidator.readInt(this.scanner, "Digite su opcion: ");
         switch (op) {
             case 2:
                 return EventType.CULTURAL;
@@ -372,7 +405,7 @@ public class ExtracurricularView {
 
     private EventRank askEventRank() {
         System.out.println("Puesto obtenido (1. 1er Lugar | 2. 2do Lugar | 3. 3er Lugar | 4. Participante):");
-        int op = InputValidator.readMenuOption(this.consola, 1, 4);
+        int op = InputValidator.readInt(this.scanner, "Digite su opcion: ");
         switch (op) {
             case 1:
                 return EventRank.FIRST_PLACE;

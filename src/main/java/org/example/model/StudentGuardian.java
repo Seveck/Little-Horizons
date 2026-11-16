@@ -4,22 +4,20 @@ public class StudentGuardian {
 
     private int studentId;
     private int guardianId;
-    private boolean primary = true;
-    private String relationship;
+    private boolean primary;
+    private boolean emergencyContact;
 
-    // Empty constructor
     public StudentGuardian() {
+        this.emergencyContact = true;
     }
 
-    // Constructor with fields
-    public StudentGuardian(int studentId, int guardianId, boolean primary, String relationship) {
+    public StudentGuardian(int studentId, int guardianId, boolean primary, boolean emergencyContact) {
         this.studentId = studentId;
         this.guardianId = guardianId;
         this.primary = primary;
-        this.relationship = relationship;
+        this.emergencyContact = emergencyContact;
     }
 
-    // Getters and Setters
     public int getStudentId() {
         return this.studentId;
     }
@@ -44,20 +42,11 @@ public class StudentGuardian {
         this.primary = primary;
     }
 
-    public String getRelationship() {
-        return this.relationship;
+    public boolean isEmergencyContact() {
+        return this.emergencyContact;
     }
 
-    public void setRelationship(String relationship) {
-        this.relationship = relationship;
-    }
-
-    @Override
-    public String toString() {
-        String tipo = this.primary ? "Principal" : "Secundario";
-        return "Estudiante ID: " + this.studentId
-                + " | Acudiente ID: " + this.guardianId
-                + " | Relacion: " + this.relationship
-                + " (" + tipo + ")";
+    public void setEmergencyContact(boolean emergencyContact) {
+        this.emergencyContact = emergencyContact;
     }
 }

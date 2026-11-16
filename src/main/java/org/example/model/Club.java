@@ -6,29 +6,16 @@ public class Club {
     private String name;
     private String description;
     private int supervisorTeacherId;
-    private int maxCapacity = 30;
-    private String schedule;
-    private String location;
-    private ClubStatus status = ClubStatus.ACTIVE;
+    private int maxCapacity;
+    private String meetingSchedule;
+    private boolean active;
+    private String supervisorName;
 
-    // Empty constructor
     public Club() {
+        this.maxCapacity = 30;
+        this.active = true;
     }
 
-    // Constructor with fields
-    public Club(int id, String name, String description, int supervisorTeacherId,
-                int maxCapacity, String schedule, String location, ClubStatus status) {
-        this.id = id;
-        this.name = name;
-        this.description = description;
-        this.supervisorTeacherId = supervisorTeacherId;
-        this.maxCapacity = maxCapacity;
-        this.schedule = schedule;
-        this.location = location;
-        this.status = status;
-    }
-
-    // Getters and Setters
     public int getId() {
         return this.id;
     }
@@ -69,37 +56,36 @@ public class Club {
         this.maxCapacity = maxCapacity;
     }
 
-    public String getSchedule() {
-        return this.schedule;
+    public String getMeetingSchedule() {
+        return this.meetingSchedule;
     }
 
-    public void setSchedule(String schedule) {
-        this.schedule = schedule;
+    public void setMeetingSchedule(String meetingSchedule) {
+        this.meetingSchedule = meetingSchedule;
     }
 
-    public String getLocation() {
-        return this.location;
+    public boolean isActive() {
+        return this.active;
     }
 
-    public void setLocation(String location) {
-        this.location = location;
+    public void setActive(boolean active) {
+        this.active = active;
     }
 
-    public ClubStatus getStatus() {
-        return this.status;
+    public String getSupervisorName() {
+        return this.supervisorName;
     }
 
-    public void setStatus(ClubStatus status) {
-        this.status = status;
+    public void setSupervisorName(String supervisorName) {
+        this.supervisorName = supervisorName;
     }
 
     @Override
     public String toString() {
-        String st = (this.status != null) ? this.status.getDbValue() : "";
-        return "ID: " + this.id
-                + " | Club: " + this.name
-                + " | Capacidad: " + this.maxCapacity
-                + " | Horario: " + this.schedule
-                + " | Estado: " + st;
+        return String.format("ID: %d | %s | Cupo: %d | Horario: %s | Sup: %s | Activo: %s",
+                this.id, this.name, this.maxCapacity,
+                this.meetingSchedule != null ? this.meetingSchedule : "-",
+                this.supervisorName != null ? this.supervisorName : String.valueOf(this.supervisorTeacherId),
+                this.active ? "Si" : "No");
     }
 }

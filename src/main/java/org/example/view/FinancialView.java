@@ -12,19 +12,20 @@ import org.example.model.PaymentStatus;
 import org.example.model.Student;
 import org.example.util.InputValidator;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.util.InputMismatchException;
 import java.util.List;
 import java.util.Scanner;
 
 public class FinancialView {
 
-    private final Scanner consola;
+    private final Scanner scanner;
     private final FinancialController controller;
     private final StudentController studentController;
 
     // Constructor
-    public FinancialView(Scanner consola) {
-        this.consola = consola;
+    public FinancialView(Scanner scanner) {
+        this.scanner = scanner;
         this.controller = new FinancialController();
         this.studentController = new StudentController();
     }
@@ -45,43 +46,56 @@ public class FinancialView {
             System.out.println("8. Consultar historial de pagos de un acudiente (hijos)");
             System.out.println("9. Reporte de morosos (pagos pendientes > 30 dias)");
             System.out.println("10. Consultar facturas electronicas y recaudo anual");
+            System.out.println("11. Buscar factura electronica por numero");
             System.out.println("0. Volver al menu principal");
+            System.out.println("Digite su opcion:");
 
-            int opcion = InputValidator.readMenuOption(this.consola, 0, 10);
+            try {
+                int option = this.scanner.nextInt();
+                this.scanner.nextLine();
 
-            switch (opcion) {
-                case 1:
-                    this.listConceptsMenu();
-                    break;
-                case 2:
-                    this.registerConceptMenu();
-                    break;
-                case 3:
-                    this.updateConceptAmountMenu();
-                    break;
-                case 4:
-                    this.registerPaymentMenu();
-                    break;
-                case 5:
-                    this.registerPendingChargeMenu();
-                    break;
-                case 6:
-                    this.settlePendingPaymentMenu();
-                    break;
-                case 7:
-                    this.studentPaymentHistoryMenu();
-                    break;
-                case 8:
-                    this.guardianPaymentHistoryMenu();
-                    break;
-                case 9:
-                    this.delinquentReportMenu();
-                    break;
-                case 10:
-                    this.invoicesAndRevenueMenu();
-                    break;
-                case 0:
-                    return;
+                switch (option) {
+                    case 1:
+                        this.listConceptsMenu();
+                        break;
+                    case 2:
+                        this.registerConceptMenu();
+                        break;
+                    case 3:
+                        this.updateConceptAmountMenu();
+                        break;
+                    case 4:
+                        this.registerPaymentMenu();
+                        break;
+                    case 5:
+                        this.registerPendingChargeMenu();
+                        break;
+                    case 6:
+                        this.settlePendingPaymentMenu();
+                        break;
+                    case 7:
+                        this.studentPaymentHistoryMenu();
+                        break;
+                    case 8:
+                        this.guardianPaymentHistoryMenu();
+                        break;
+                    case 9:
+                        this.delinquentReportMenu();
+                        break;
+                    case 10:
+                        this.invoicesAndRevenueMenu();
+                        break;
+                    case 11:
+                        this.searchInvoiceMenu();
+                        break;
+                    case 0:
+                        return;
+                    default:
+                        System.out.println("Error, opcion invalida");
+                }
+            } catch (InputMismatchException e) {
+                System.out.println("Error, digito invalido");
+                this.scanner.nextLine();
             }
         }
     }
@@ -102,13 +116,20 @@ public class FinancialView {
     // 2. Register new payment concept
     private void registerConceptMenu() {
         System.out.println("\n--- REGISTRAR NUEVO CONCEPTO DE PAGO ---");
-        String code = InputValidator.readString(this.consola, "Codigo del concepto (ej. UNI-01): ").toUpperCase();
-        String name = InputValidator.readString(this.consola, "Nombre del concepto: ");
-        String desc = InputValidator.readOptionalString(this.consola, "Descripcion: ");
-        double baseAmount = InputValidator.readPositiveDouble(this.consola, "Monto base ($): ");
-        boolean periodic = InputValidator.readConfirmation(this.consola, "¿Es un cobro periodico (mensual)?");
+        String code = InputValidator.readString(this.scanner, "Codigo del concepto (ej. UNI-01): ").toUpperCase();
+        String name = InputValidator.readString(this.scanner, "Nombre del concepto: ");
+        String desc = InputValidator.readOptionalString(this.scanner, "Descripcion: ");
+        double baseAmount = InputValidator.readPositiveDouble(this.scanner, "Monto base ($): ");
+        boolean recurring = InputValidator.readConfirmation(this.scanner, "¿Es un cobro recurrente (mensual)?");
 
-        PaymentConcept pc = new PaymentConcept(0, code, name, desc, baseAmount, periodic);
+        PaymentConcept pc = new PaymentConcept();
+        pc.setCode(code);
+        pc.setName(name);
+        pc.setDescription(desc.isEmpty() ? null : desc);
+        pc.setBaseAmount(baseAmount);
+        pc.setRecurring(recurring);
+        pc.setActive(true);
+
         int id = this.controller.registerConcept(pc);
         if (id > 0) {
             System.out.println("Concepto registrado con exito. ID: " + id);
@@ -121,14 +142,14 @@ public class FinancialView {
     private void updateConceptAmountMenu() {
         System.out.println("\n--- ACTUALIZAR VALOR BASE DE CONCEPTO ---");
         this.listConceptsMenu();
-        int conceptId = InputValidator.readInt(this.consola, "ID del concepto a actualizar: ");
+        int conceptId = InputValidator.readInt(this.scanner, "ID del concepto a actualizar: ");
         PaymentConcept concept = this.controller.findConceptById(conceptId);
         if (concept == null) {
             System.out.println("Concepto no encontrado.");
             return;
         }
         System.out.println("Concepto seleccionado: " + concept.getName() + " | Valor actual: $" + concept.getBaseAmount());
-        double newAmount = InputValidator.readPositiveDouble(this.consola, "Nuevo monto base ($): ");
+        double newAmount = InputValidator.readPositiveDouble(this.scanner, "Nuevo monto base ($): ");
         if (this.controller.updateConceptBaseAmount(conceptId, newAmount)) {
             System.out.println("Valor base actualizado correctamente.");
         } else {
@@ -139,7 +160,7 @@ public class FinancialView {
     // 4. Register confirmed payment + auto DIAN .txt invoice
     private void registerPaymentMenu() {
         System.out.println("\n--- REGISTRAR PAGO Y FACTURA ELECTRONICA ---");
-        int studentId = InputValidator.readInt(this.consola, "ID del estudiante: ");
+        int studentId = InputValidator.readInt(this.scanner, "ID del estudiante: ");
         Student student = this.studentController.findStudentById(studentId);
         if (student == null) {
             System.out.println("Estudiante no encontrado.");
@@ -148,27 +169,46 @@ public class FinancialView {
         System.out.println("Estudiante: " + student.getFullName());
 
         Guardian responsibleGuardian = this.findResponsibleGuardian(studentId);
+        int guardianId = 0;
         if (responsibleGuardian != null) {
+            guardianId = responsibleGuardian.getId();
             System.out.println("Acudiente responsable: " + responsibleGuardian.getFullName()
                     + " (" + responsibleGuardian.getDocumentNumber() + ")");
         }
 
         this.listConceptsMenu();
-        int conceptId = InputValidator.readInt(this.consola, "ID del concepto de pago: ");
+        int conceptId = InputValidator.readInt(this.scanner, "ID del concepto de pago: ");
         PaymentConcept concept = this.controller.findConceptById(conceptId);
         if (concept == null) {
             System.out.println("Concepto no encontrado.");
             return;
         }
 
-        int year = InputValidator.readIntRange(this.consola, "Año academico (ej. 2026): ", 2020, 2035);
+        int year = InputValidator.readInt(this.scanner, "Año academico (ej. 2026): ");
+        String academicPeriod = this.askPaymentPeriod();
         double amountToCharge = concept.getBaseAmount();
         double discount = 0.0;
 
         System.out.println("Valor base del concepto: $" + amountToCharge);
-        if (InputValidator.readConfirmation(this.consola, "¿Aplicar valor personalizado o descuento (beca / hermanos)?")) {
-            discount = InputValidator.readDoubleRange(
-                    this.consola, "Valor del descuento ($): ", 0.0, amountToCharge - 1.0);
+        if (InputValidator.readConfirmation(this.scanner, "¿Ajustar valor o aplicar descuento (beca / hermanos)?")) {
+            System.out.println("1. Aplicar valor de descuento ($)");
+            System.out.println("2. Definir valor final personalizado para este estudiante ($)");
+            int adjustOp = InputValidator.readInt(this.scanner, "Digite su opcion: ");
+            if (adjustOp == 2) {
+                double customTotal = InputValidator.readPositiveDouble(this.scanner, "Valor personalizado a cobrar ($): ");
+                if (customTotal < amountToCharge) {
+                    discount = amountToCharge - customTotal;
+                } else {
+                    amountToCharge = customTotal;
+                    discount = 0.0;
+                }
+            } else {
+                discount = InputValidator.readPositiveDouble(this.scanner, "Valor del descuento ($): ");
+                if (discount >= amountToCharge) {
+                    System.out.println("El descuento excede el monto base; se ajustara a 0.");
+                    discount = 0.0;
+                }
+            }
         }
         double netTotal = amountToCharge - discount;
         System.out.println("Total neto a pagar: $" + netTotal);
@@ -177,12 +217,23 @@ public class FinancialView {
         String suggestedReceipt = this.controller.generateNextReceiptNumber(year);
         System.out.println("Numero de recibo sugerido: " + suggestedReceipt);
         String customReceipt = InputValidator.readOptionalString(
-                this.consola, "Presione ENTER para usar el sugerido o escriba otro: ");
+                this.scanner, "Presione ENTER para usar el sugerido o escriba otro: ");
         String receiptNumber = customReceipt.isEmpty() ? suggestedReceipt : customReceipt.toUpperCase();
-        String remarks = InputValidator.readOptionalString(this.consola, "Observaciones: ");
+        String notes = InputValidator.readOptionalString(this.scanner, "Notas u observaciones: ");
 
-        Payment payment = new Payment(0, receiptNumber, studentId, conceptId, year, netTotal,
-                method, LocalDateTime.now(), PaymentStatus.PAID, discount, remarks);
+        Payment payment = new Payment();
+        payment.setStudentId(studentId);
+        payment.setGuardianId(guardianId);
+        payment.setConceptId(conceptId);
+        payment.setAmountPaid(netTotal);
+        payment.setDiscountApplied(discount);
+        payment.setStatus(PaymentStatus.PAID);
+        payment.setPaymentDate(LocalDate.now());
+        payment.setPaymentMethod(method);
+        payment.setReceiptNumber(receiptNumber);
+        payment.setAcademicYear(year);
+        payment.setAcademicPeriod(academicPeriod);
+        payment.setNotes(notes.isEmpty() ? null : notes);
 
         String invoicePath = this.controller.registerConfirmedPayment(payment, student, responsibleGuardian, concept);
         if (invoicePath != null) {
@@ -197,27 +248,44 @@ public class FinancialView {
     // 5. Register pending charge
     private void registerPendingChargeMenu() {
         System.out.println("\n--- REGISTRAR COBRO PENDIENTE ---");
-        int studentId = InputValidator.readInt(this.consola, "ID del estudiante: ");
+        int studentId = InputValidator.readInt(this.scanner, "ID del estudiante: ");
         Student student = this.studentController.findStudentById(studentId);
         if (student == null) {
             System.out.println("Estudiante no encontrado.");
             return;
         }
+        Guardian responsible = this.findResponsibleGuardian(studentId);
+        int guardianId = (responsible != null) ? responsible.getId() : 0;
+
         this.listConceptsMenu();
-        int conceptId = InputValidator.readInt(this.consola, "ID del concepto: ");
+        int conceptId = InputValidator.readInt(this.scanner, "ID del concepto: ");
         PaymentConcept concept = this.controller.findConceptById(conceptId);
         if (concept == null) {
             System.out.println("Concepto no encontrado.");
             return;
         }
-        int year = InputValidator.readIntRange(this.consola, "Año academico (ej. 2026): ", 2020, 2035);
-        double discount = InputValidator.readDoubleRange(
-                this.consola, "Descuento aplicado (0 si no aplica): ", 0.0, concept.getBaseAmount() - 1.0);
+        int year = InputValidator.readInt(this.scanner, "Año academico (ej. 2026): ");
+        String academicPeriod = this.askPaymentPeriod();
+        double discount = InputValidator.readPositiveDouble(this.scanner, "Descuento aplicado (0 si no aplica): ");
+        if (discount >= concept.getBaseAmount()) {
+            discount = 0.0;
+        }
         double net = concept.getBaseAmount() - discount;
-        String remarks = InputValidator.readOptionalString(this.consola, "Observaciones: ");
+        String notes = InputValidator.readOptionalString(this.scanner, "Notas u observaciones: ");
 
-        Payment pending = new Payment(0, null, studentId, conceptId, year, net,
-                PaymentMethod.TRANSFER, LocalDateTime.now(), PaymentStatus.PENDING, discount, remarks);
+        Payment pending = new Payment();
+        pending.setStudentId(studentId);
+        pending.setGuardianId(guardianId);
+        pending.setConceptId(conceptId);
+        pending.setAmountPaid(net);
+        pending.setDiscountApplied(discount);
+        pending.setStatus(PaymentStatus.PENDING);
+        pending.setPaymentDate(LocalDate.now());
+        pending.setPaymentMethod(PaymentMethod.TRANSFER);
+        pending.setAcademicYear(year);
+        pending.setAcademicPeriod(academicPeriod);
+        pending.setNotes(notes.isEmpty() ? null : notes);
+
         int id = this.controller.registerPendingCharge(pending);
         if (id > 0) {
             System.out.println("Cobro pendiente registrado. ID Pago: " + id);
@@ -229,7 +297,7 @@ public class FinancialView {
     // 6. Pay an existing pending charge and emit invoice
     private void settlePendingPaymentMenu() {
         System.out.println("\n--- PAGAR COBRO PENDIENTE ---");
-        int paymentId = InputValidator.readInt(this.consola, "ID del pago pendiente: ");
+        int paymentId = InputValidator.readInt(this.scanner, "ID del pago pendiente: ");
         Payment existing = this.controller.findPaymentById(paymentId);
         if (existing == null || existing.getStatus() != PaymentStatus.PENDING) {
             System.out.println("No se encontro un cobro pendiente con ese ID.");
@@ -259,7 +327,7 @@ public class FinancialView {
     // 7. Student payment history
     private void studentPaymentHistoryMenu() {
         System.out.println("\n--- HISTORIAL DE PAGOS POR ESTUDIANTE ---");
-        int studentId = InputValidator.readInt(this.consola, "ID del estudiante: ");
+        int studentId = InputValidator.readInt(this.scanner, "ID del estudiante: ");
         List<PaymentDetail> list = this.controller.getStudentPaymentHistory(studentId);
         if (list.isEmpty()) {
             System.out.println("No hay pagos registrados para ese estudiante.");
@@ -273,7 +341,7 @@ public class FinancialView {
     // 8. Guardian payment history (across siblings)
     private void guardianPaymentHistoryMenu() {
         System.out.println("\n--- HISTORIAL DE PAGOS POR ACUDIENTE ---");
-        int guardianId = InputValidator.readInt(this.consola, "ID del acudiente: ");
+        int guardianId = InputValidator.readInt(this.scanner, "ID del acudiente: ");
         Guardian g = this.studentController.findGuardianById(guardianId);
         if (g == null) {
             System.out.println("Acudiente no encontrado.");
@@ -307,7 +375,7 @@ public class FinancialView {
     // 10. List invoices and annual total revenue (Streams)
     private void invoicesAndRevenueMenu() {
         System.out.println("\n--- FACTURAS ELECTRONICAS Y RECAUDO ANUAL ---");
-        int year = InputValidator.readIntRange(this.consola, "Año academico para total recaudado: ", 2020, 2035);
+        int year = InputValidator.readInt(this.scanner, "Año academico para total recaudado: ");
         double collected = this.controller.calculateTotalCollectedByYear(year);
         System.out.println("Total recaudado en " + year + ": $" + String.format("%,.2f", collected));
 
@@ -317,6 +385,20 @@ public class FinancialView {
         for (int i = 0; i < limit; i++) {
             System.out.println(invoices.get(i).toString());
         }
+    }
+
+    // 11. Search electronic invoice by consecutive number
+    private void searchInvoiceMenu() {
+        System.out.println("\n--- BUSCAR FACTURA ELECTRONICA ---");
+        String invoiceNumber = InputValidator.readString(this.scanner, "Numero de factura (ej. FE-2026-000001): ");
+        Invoice invoice = this.controller.findInvoiceByNumber(invoiceNumber);
+        if (invoice == null) {
+            System.out.println("No se encontro ninguna factura con ese numero.");
+            return;
+        }
+        System.out.println(invoice.toString());
+        System.out.println("CUFE: " + invoice.getCufe());
+        System.out.println("Archivo TXT: " + invoice.getPdfFileName());
     }
 
     // Helper to get the primary guardian linked to the student
@@ -330,7 +412,7 @@ public class FinancialView {
 
     private PaymentMethod askPaymentMethod() {
         System.out.println("Metodo de pago (1. Efectivo | 2. Transferencia | 3. Tarjeta Debito | 4. Tarjeta Credito | 5. Cheque):");
-        int op = InputValidator.readMenuOption(this.consola, 1, 5);
+        int op = InputValidator.readInt(this.scanner, "Digite su opcion: ");
         switch (op) {
             case 2:
                 return PaymentMethod.TRANSFER;
@@ -342,6 +424,23 @@ public class FinancialView {
                 return PaymentMethod.CHECK;
             default:
                 return PaymentMethod.CASH;
+        }
+    }
+
+    private String askPaymentPeriod() {
+        System.out.println("Periodo al que aplica el pago (1. I | 2. II | 3. III | 4. IV | 5. Anual):");
+        int op = InputValidator.readInt(this.scanner, "Digite su opcion: ");
+        switch (op) {
+            case 1:
+                return "I";
+            case 2:
+                return "II";
+            case 3:
+                return "III";
+            case 4:
+                return "IV";
+            default:
+                return "Anual";
         }
     }
 }

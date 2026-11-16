@@ -15,7 +15,7 @@ public class ErrorLogger {
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     // Log an exception using Class reference
-    public static synchronized void log(Class<?> sourceClass, String methodName, Throwable error) {
+    public static synchronized void log(Class sourceClass, String methodName, Throwable error) {
         String className = "UnknownClass";
         if (sourceClass != null) {
             className = sourceClass.getSimpleName();

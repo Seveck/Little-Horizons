@@ -31,6 +31,11 @@ public class AcademicController {
         return this.academicRecordDao.insert(record);
     }
 
+    // Update an existing grade (0.0 to 5.0)
+    public boolean updateGrade(int recordId, double newGrade, String observations) {
+        return this.academicRecordDao.updateGrade(recordId, newGrade, observations);
+    }
+
     // Get full academic history of a student since enrollment
     public List<GradeDetail> getFullStudentAcademicHistory(int studentId) {
         return this.academicRecordDao.findAllGradeDetailsByStudent(studentId);
@@ -97,6 +102,11 @@ public class AcademicController {
     // Record daily attendance
     public int recordAttendance(Attendance attendance) {
         return this.attendanceDao.insert(attendance);
+    }
+
+    // Update attendance status
+    public boolean updateAttendanceStatus(int attendanceId, AttendanceStatus status, String observations) {
+        return this.attendanceDao.updateStatus(attendanceId, status, observations);
     }
 
     // Get attendance history for a student

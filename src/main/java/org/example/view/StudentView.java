@@ -12,17 +12,18 @@ import org.example.model.StudentStatus;
 import org.example.util.InputValidator;
 
 import java.time.LocalDate;
+import java.util.InputMismatchException;
 import java.util.List;
 import java.util.Scanner;
 
 public class StudentView {
 
-    private final Scanner consola;
+    private final Scanner scanner;
     private final StudentController controller;
 
     // Constructor
-    public StudentView(Scanner consola) {
-        this.consola = consola;
+    public StudentView(Scanner scanner) {
+        this.scanner = scanner;
         this.controller = new StudentController();
     }
 
@@ -41,40 +42,53 @@ public class StudentView {
             System.out.println("7. Consultar acudientes de estudiante / hermanos por acudiente");
             System.out.println("8. Matricular estudiante en grado y año academico");
             System.out.println("9. Consultar matriculas por grado y año");
+            System.out.println("10. Actualizar datos de un estudiante");
             System.out.println("0. Volver al menu principal");
+            System.out.println("Digite su opcion:");
 
-            int opcion = InputValidator.readMenuOption(this.consola, 0, 9);
+            try {
+                int option = this.scanner.nextInt();
+                this.scanner.nextLine();
 
-            switch (opcion) {
-                case 1:
-                    this.registerStudentMenu();
-                    break;
-                case 2:
-                    this.listAllStudents();
-                    break;
-                case 3:
-                    this.searchStudent();
-                    break;
-                case 4:
-                    this.changeStudentStatus();
-                    break;
-                case 5:
-                    this.registerGuardianMenu();
-                    break;
-                case 6:
-                    this.linkGuardianMenu();
-                    break;
-                case 7:
-                    this.queryFamilyRelations();
-                    break;
-                case 8:
-                    this.enrollStudentMenu();
-                    break;
-                case 9:
-                    this.listEnrollmentsMenu();
-                    break;
-                case 0:
-                    return;
+                switch (option) {
+                    case 1:
+                        this.registerStudentMenu();
+                        break;
+                    case 2:
+                        this.listAllStudents();
+                        break;
+                    case 3:
+                        this.searchStudent();
+                        break;
+                    case 4:
+                        this.changeStudentStatus();
+                        break;
+                    case 5:
+                        this.registerGuardianMenu();
+                        break;
+                    case 6:
+                        this.linkGuardianMenu();
+                        break;
+                    case 7:
+                        this.queryFamilyRelations();
+                        break;
+                    case 8:
+                        this.enrollStudentMenu();
+                        break;
+                    case 9:
+                        this.listEnrollmentsMenu();
+                        break;
+                    case 10:
+                        this.updateStudentMenu();
+                        break;
+                    case 0:
+                        return;
+                    default:
+                        System.out.println("Error, opcion invalida");
+                }
+            } catch (InputMismatchException e) {
+                System.out.println("Error, digito invalido");
+                this.scanner.nextLine();
             }
         }
     }
@@ -83,34 +97,52 @@ public class StudentView {
     private void registerStudentMenu() {
         System.out.println("\n--- REGISTRO DE NUEVO ESTUDIANTE ---");
         DocumentType docType = this.askStudentDocType();
-        String docNum = InputValidator.readDocument(this.consola, "Numero de documento: ");
+        String docNum = InputValidator.readDocument(this.scanner, "Numero de documento: ");
 
         if (this.controller.findStudentByDocument(docNum) != null) {
             System.out.println("Error, ya existe un estudiante con ese documento.");
             return;
         }
 
-        String firstName = InputValidator.readString(this.consola, "Nombres: ");
-        String lastName = InputValidator.readString(this.consola, "Apellidos: ");
-        LocalDate birthDate = InputValidator.readDate(this.consola, "Fecha de nacimiento (AAAA-MM-DD): ");
+        String firstName = InputValidator.readString(this.scanner, "Primer nombre: ");
+        String middleName = InputValidator.readOptionalString(this.scanner, "Segundo nombre (opcional): ");
+        String lastName = InputValidator.readString(this.scanner, "Primer apellido: ");
+        String secondLastName = InputValidator.readOptionalString(this.scanner, "Segundo apellido (opcional): ");
+        LocalDate birthDate = InputValidator.readDate(this.scanner, "Fecha de nacimiento (AAAA-MM-DD): ");
         Gender gender = this.askGender();
-        String address = InputValidator.readString(this.consola, "Direccion: ");
-        String phone = InputValidator.readOptionalString(this.consola, "Telefono (opcional): ");
-        String email = InputValidator.readEmail(this.consola, "Correo institucional o personal: ");
+        String address = InputValidator.readOptionalString(this.scanner, "Direccion: ");
+        String phone = InputValidator.readOptionalString(this.scanner, "Telefono (opcional): ");
+        String email = InputValidator.readEmail(this.scanner, "Correo electronico: ");
+        String bloodType = InputValidator.readOptionalString(this.scanner, "Tipo de sangre (ej. O+, opcional): ");
+        String allergies = InputValidator.readOptionalString(this.scanner, "Alergias (opcional): ");
+        String medicalConditions = InputValidator.readOptionalString(this.scanner, "Condiciones medicas (opcional): ");
 
-        Student student = new Student(0, docType, docNum, firstName, lastName,
-                birthDate, gender, address, phone, email, StudentStatus.ACTIVE);
+        Student student = new Student();
+        student.setDocumentType(docType);
+        student.setDocumentNumber(docNum);
+        student.setFirstName(firstName);
+        student.setMiddleName(middleName.isEmpty() ? null : middleName);
+        student.setLastName(lastName);
+        student.setSecondLastName(secondLastName.isEmpty() ? null : secondLastName);
+        student.setBirthDate(birthDate);
+        student.setGender(gender);
+        student.setAddress(address);
+        student.setPhone(phone.isEmpty() ? null : phone);
+        student.setEmail(email);
+        student.setBloodType(bloodType.isEmpty() ? null : bloodType);
+        student.setAllergies(allergies.isEmpty() ? null : allergies);
+        student.setMedicalConditions(medicalConditions.isEmpty() ? null : medicalConditions);
+        student.setEnrollmentDate(LocalDate.now());
+        student.setStatus(StudentStatus.ACTIVE);
 
         System.out.println("\n¿El acudiente ya esta registrado en el sistema?");
         System.out.println("1. Si, buscar acudiente existente (soporta hermanos)");
         System.out.println("2. No, registrar un nuevo acudiente ahora");
-        int choice = InputValidator.readMenuOption(this.consola, 1, 2);
+        int choice = InputValidator.readInt(this.scanner, "Digite su opcion: ");
 
         int guardianId = -1;
-        String relationship = "Padre/Madre";
-
         if (choice == 1) {
-            String gDoc = InputValidator.readDocument(this.consola, "Documento del acudiente existente: ");
+            String gDoc = InputValidator.readDocument(this.scanner, "Documento del acudiente existente: ");
             Guardian g = this.controller.findGuardianByDocument(gDoc);
             if (g == null) {
                 System.out.println("No se encontro acudiente con documento " + gDoc);
@@ -118,7 +150,6 @@ public class StudentView {
             }
             System.out.println("Acudiente encontrado: " + g.getFullName());
             guardianId = g.getId();
-            relationship = InputValidator.readString(this.consola, "Relacion con el estudiante (ej. Padre, Madre, Tutor): ");
         } else {
             Guardian newGuardian = this.promptGuardianData();
             guardianId = this.controller.registerGuardian(newGuardian);
@@ -126,10 +157,10 @@ public class StudentView {
                 System.out.println("Error al guardar el acudiente.");
                 return;
             }
-            relationship = newGuardian.getRelationship();
         }
 
-        int newId = this.controller.registerStudentWithGuardian(student, guardianId, true, relationship);
+        boolean isEmergency = InputValidator.readConfirmation(this.scanner, "¿Es contacto de emergencia?");
+        int newId = this.controller.registerStudentWithGuardian(student, guardianId, true, isEmergency);
         if (newId > 0) {
             System.out.println("Estudiante registrado y asociado con su acudiente. ID asignado: " + newId);
         } else {
@@ -156,10 +187,10 @@ public class StudentView {
         System.out.println("\n--- BUSCAR ESTUDIANTE ---");
         System.out.println("1. Buscar por documento");
         System.out.println("2. Buscar por nombre o apellido");
-        int op = InputValidator.readMenuOption(this.consola, 1, 2);
+        int op = InputValidator.readInt(this.scanner, "Digite su opcion: ");
 
         if (op == 1) {
-            String doc = InputValidator.readDocument(this.consola, "Ingrese numero de documento: ");
+            String doc = InputValidator.readDocument(this.scanner, "Ingrese numero de documento: ");
             Student s = this.controller.findStudentByDocument(doc);
             if (s != null) {
                 System.out.println(s.toString());
@@ -167,7 +198,7 @@ public class StudentView {
                 System.out.println("No se encontro ningun estudiante con documento " + doc);
             }
         } else {
-            String text = InputValidator.readString(this.consola, "Ingrese nombre o apellido a buscar: ");
+            String text = InputValidator.readString(this.scanner, "Ingrese nombre o apellido a buscar: ");
             List<Student> results = this.controller.searchStudentsByName(text);
             if (results.isEmpty()) {
                 System.out.println("No se encontraron coincidencias.");
@@ -182,7 +213,7 @@ public class StudentView {
     // 4. Update student status
     private void changeStudentStatus() {
         System.out.println("\n--- CAMBIAR ESTADO DE ESTUDIANTE ---");
-        int studentId = InputValidator.readInt(this.consola, "ID del estudiante: ");
+        int studentId = InputValidator.readInt(this.scanner, "ID del estudiante: ");
         Student s = this.controller.findStudentById(studentId);
         if (s == null) {
             System.out.println("Estudiante no encontrado.");
@@ -194,7 +225,7 @@ public class StudentView {
         System.out.println("2. Graduado");
         System.out.println("3. Retirado");
         System.out.println("4. Suspendido");
-        int op = InputValidator.readMenuOption(this.consola, 1, 4);
+        int op = InputValidator.readInt(this.scanner, "Digite su opcion: ");
 
         StudentStatus status = StudentStatus.ACTIVE;
         if (op == 2) status = StudentStatus.GRADUATED;
@@ -223,22 +254,22 @@ public class StudentView {
     // 6. Link existing guardian to existing student
     private void linkGuardianMenu() {
         System.out.println("\n--- ASOCIAR ACUDIENTE A ESTUDIANTE ---");
-        int studentId = InputValidator.readInt(this.consola, "ID del estudiante: ");
+        int studentId = InputValidator.readInt(this.scanner, "ID del estudiante: ");
         Student s = this.controller.findStudentById(studentId);
         if (s == null) {
             System.out.println("Estudiante no encontrado.");
             return;
         }
-        int guardianId = InputValidator.readInt(this.consola, "ID del acudiente: ");
+        int guardianId = InputValidator.readInt(this.scanner, "ID del acudiente: ");
         Guardian g = this.controller.findGuardianById(guardianId);
         if (g == null) {
             System.out.println("Acudiente no encontrado.");
             return;
         }
-        boolean primary = InputValidator.readConfirmation(this.consola, "¿Es el acudiente principal?");
-        String rel = InputValidator.readString(this.consola, "Parentesco / Relacion (ej. Madre, Padre, Tio): ");
+        boolean primary = InputValidator.readConfirmation(this.scanner, "¿Es el acudiente principal?");
+        boolean emergency = InputValidator.readConfirmation(this.scanner, "¿Es contacto de emergencia?");
 
-        if (this.controller.linkGuardianToStudent(studentId, guardianId, primary, rel)) {
+        if (this.controller.linkGuardianToStudent(studentId, guardianId, primary, emergency)) {
             System.out.println("Asociacion guardada entre " + s.getFullName() + " y " + g.getFullName());
         } else {
             System.out.println("No se pudo asociar (es posible que ya exista esa relacion).");
@@ -250,10 +281,10 @@ public class StudentView {
         System.out.println("\n--- CONSULTA DE ACUDIENTES Y HERMANOS ---");
         System.out.println("1. Ver acudientes de un estudiante");
         System.out.println("2. Ver estudiantes (hermanos) a cargo de un acudiente");
-        int op = InputValidator.readMenuOption(this.consola, 1, 2);
+        int op = InputValidator.readInt(this.scanner, "Digite su opcion: ");
 
         if (op == 1) {
-            int studentId = InputValidator.readInt(this.consola, "ID del estudiante: ");
+            int studentId = InputValidator.readInt(this.scanner, "ID del estudiante: ");
             List<Guardian> list = this.controller.getGuardiansByStudent(studentId);
             if (list.isEmpty()) {
                 System.out.println("No hay acudientes asociados a ese estudiante.");
@@ -263,7 +294,7 @@ public class StudentView {
                 }
             }
         } else {
-            int guardianId = InputValidator.readInt(this.consola, "ID del acudiente: ");
+            int guardianId = InputValidator.readInt(this.scanner, "ID del acudiente: ");
             List<Student> list = this.controller.getStudentsByGuardian(guardianId);
             if (list.isEmpty()) {
                 System.out.println("No hay estudiantes asociados a ese acudiente.");
@@ -279,7 +310,7 @@ public class StudentView {
     // 8. Enroll student in grade & academic year
     private void enrollStudentMenu() {
         System.out.println("\n--- MATRICULAR ESTUDIANTE ---");
-        int studentId = InputValidator.readInt(this.consola, "ID del estudiante: ");
+        int studentId = InputValidator.readInt(this.scanner, "ID del estudiante: ");
         Student s = this.controller.findStudentById(studentId);
         if (s == null) {
             System.out.println("Estudiante no encontrado.");
@@ -292,12 +323,18 @@ public class StudentView {
         for (Grade g : grades) {
             System.out.println(g.toString());
         }
-        int gradeId = InputValidator.readInt(this.consola, "Seleccione ID del grado: ");
-        int year = InputValidator.readIntRange(this.consola, "Año academico (ej. 2026): ", 2020, 2035);
-        double cost = InputValidator.readPositiveDouble(this.consola, "Costo de matricula ($): ");
+        int gradeId = InputValidator.readInt(this.scanner, "Seleccione ID del grado: ");
+        int year = InputValidator.readInt(this.scanner, "Año academico (ej. 2026): ");
+        String observations = InputValidator.readOptionalString(this.scanner, "Observaciones (opcional): ");
 
-        Enrollment enrollment = new Enrollment(0, studentId, gradeId, year,
-                LocalDate.now(), EnrollmentStatus.ENROLLED, cost);
+        Enrollment enrollment = new Enrollment();
+        enrollment.setStudentId(studentId);
+        enrollment.setGradeId(gradeId);
+        enrollment.setAcademicYear(year);
+        enrollment.setEnrollmentDate(LocalDate.now());
+        enrollment.setStatus(EnrollmentStatus.ACTIVE);
+        enrollment.setObservations(observations.isEmpty() ? null : observations);
+
         int id = this.controller.enrollStudent(enrollment);
         if (id > 0) {
             System.out.println("Matricula registrada con exito. ID: " + id);
@@ -313,8 +350,8 @@ public class StudentView {
         for (Grade g : grades) {
             System.out.println(g.toString());
         }
-        int gradeId = InputValidator.readInt(this.consola, "ID del grado: ");
-        int year = InputValidator.readIntRange(this.consola, "Año academico: ", 2020, 2035);
+        int gradeId = InputValidator.readInt(this.scanner, "ID del grado: ");
+        int year = InputValidator.readInt(this.scanner, "Año academico: ");
 
         List<String> list = this.controller.listEnrollmentsByGradeAndYear(gradeId, year);
         if (list.isEmpty()) {
@@ -327,30 +364,86 @@ public class StudentView {
         }
     }
 
+    // 10. Update student contact and medical information
+    private void updateStudentMenu() {
+        System.out.println("\n--- ACTUALIZAR DATOS DE ESTUDIANTE ---");
+        int studentId = InputValidator.readInt(this.scanner, "ID del estudiante: ");
+        Student student = this.controller.findStudentById(studentId);
+        if (student == null) {
+            System.out.println("Estudiante no encontrado.");
+            return;
+        }
+        System.out.println("Estudiante actual: " + student.toString());
+
+        String address = InputValidator.readOptionalString(this.scanner, "Nueva direccion (ENTER para mantener actual): ");
+        if (!address.isEmpty()) {
+            student.setAddress(address);
+        }
+        String phone = InputValidator.readOptionalString(this.scanner, "Nuevo telefono (ENTER para mantener actual): ");
+        if (!phone.isEmpty()) {
+            student.setPhone(phone);
+        }
+        String email = InputValidator.readOptionalString(this.scanner, "Nuevo correo (ENTER para mantener actual): ");
+        if (!email.isEmpty()) {
+            student.setEmail(email);
+        }
+        String allergies = InputValidator.readOptionalString(this.scanner, "Alergias (ENTER para mantener actual): ");
+        if (!allergies.isEmpty()) {
+            student.setAllergies(allergies);
+        }
+        String conditions = InputValidator.readOptionalString(this.scanner, "Condiciones medicas (ENTER para mantener actual): ");
+        if (!conditions.isEmpty()) {
+            student.setMedicalConditions(conditions);
+        }
+
+        if (this.controller.updateStudent(student)) {
+            System.out.println("Datos del estudiante actualizados correctamente.");
+        } else {
+            System.out.println("No se pudieron actualizar los datos del estudiante.");
+        }
+    }
+
     // Helper: ask guardian details
     private Guardian promptGuardianData() {
         System.out.println("Tipo de documento del acudiente (1. CC | 2. CE | 3. Pasaporte):");
-        int dt = InputValidator.readMenuOption(this.consola, 1, 3);
+        int dt = InputValidator.readInt(this.scanner, "Digite su opcion: ");
         DocumentType docType = DocumentType.CC;
         if (dt == 2) docType = DocumentType.CE;
         if (dt == 3) docType = DocumentType.PASSPORT;
 
-        String docNum = InputValidator.readDocument(this.consola, "Documento del acudiente: ");
-        String firstName = InputValidator.readString(this.consola, "Nombres acudiente: ");
-        String lastName = InputValidator.readString(this.consola, "Apellidos acudiente: ");
-        String relationship = InputValidator.readString(this.consola, "Parentesco (Padre, Madre, Tutor): ");
-        String phone = InputValidator.readString(this.consola, "Telefono: ");
-        String email = InputValidator.readEmail(this.consola, "Correo electronico: ");
-        String address = InputValidator.readString(this.consola, "Direccion: ");
-        String occupation = InputValidator.readOptionalString(this.consola, "Profesion u ocupacion: ");
+        String docNum = InputValidator.readDocument(this.scanner, "Documento del acudiente: ");
+        String firstName = InputValidator.readString(this.scanner, "Primer nombre acudiente: ");
+        String middleName = InputValidator.readOptionalString(this.scanner, "Segundo nombre acudiente (opcional): ");
+        String lastName = InputValidator.readString(this.scanner, "Primer apellido acudiente: ");
+        String secondLastName = InputValidator.readOptionalString(this.scanner, "Segundo apellido acudiente (opcional): ");
+        String relationship = InputValidator.readString(this.scanner, "Parentesco (Padre, Madre, Tutor): ");
+        String primaryPhone = InputValidator.readString(this.scanner, "Telefono principal: ");
+        String secondaryPhone = InputValidator.readOptionalString(this.scanner, "Telefono secundario (opcional): ");
+        String email = InputValidator.readEmail(this.scanner, "Correo electronico: ");
+        String address = InputValidator.readOptionalString(this.scanner, "Direccion: ");
+        String occupation = InputValidator.readOptionalString(this.scanner, "Ocupacion (opcional): ");
+        boolean financialResp = InputValidator.readConfirmation(this.scanner, "¿Es responsable financiero de pagos?");
 
-        return new Guardian(0, docType, docNum, firstName, lastName,
-                relationship, phone, email, address, occupation);
+        Guardian g = new Guardian();
+        g.setDocumentType(docType);
+        g.setDocumentNumber(docNum);
+        g.setFirstName(firstName);
+        g.setMiddleName(middleName.isEmpty() ? null : middleName);
+        g.setLastName(lastName);
+        g.setSecondLastName(secondLastName.isEmpty() ? null : secondLastName);
+        g.setRelationship(relationship);
+        g.setPrimaryPhone(primaryPhone);
+        g.setSecondaryPhone(secondaryPhone.isEmpty() ? null : secondaryPhone);
+        g.setEmail(email);
+        g.setAddress(address);
+        g.setOccupation(occupation.isEmpty() ? null : occupation);
+        g.setFinancialResponsible(financialResp);
+        return g;
     }
 
     private DocumentType askStudentDocType() {
         System.out.println("Tipo de documento (1. TI | 2. CC | 3. CE | 4. Pasaporte):");
-        int op = InputValidator.readMenuOption(this.consola, 1, 4);
+        int op = InputValidator.readInt(this.scanner, "Digite su opcion: ");
         if (op == 1) return DocumentType.TI;
         if (op == 2) return DocumentType.CC;
         if (op == 3) return DocumentType.CE;
@@ -359,7 +452,7 @@ public class StudentView {
 
     private Gender askGender() {
         System.out.println("Genero (1. Masculino [M] | 2. Femenino [F] | 3. Otro):");
-        int op = InputValidator.readMenuOption(this.consola, 1, 3);
+        int op = InputValidator.readInt(this.scanner, "Digite su opcion: ");
         if (op == 1) return Gender.MALE;
         if (op == 2) return Gender.FEMALE;
         return Gender.OTHER;

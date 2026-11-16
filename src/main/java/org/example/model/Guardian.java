@@ -6,38 +6,22 @@ public class Guardian {
     private DocumentType documentType;
     private String documentNumber;
     private String firstName;
+    private String middleName;
     private String lastName;
+    private String secondLastName;
     private String relationship;
-    private String phone;
+    private String primaryPhone;
+    private String secondaryPhone;
     private String email;
     private String address;
     private String occupation;
+    private boolean financialResponsible;
 
-    // Empty constructor
     public Guardian() {
+        this.documentType = DocumentType.CC;
+        this.financialResponsible = true;
     }
 
-    // Constructor with fields
-    public Guardian(int id, DocumentType documentType, String documentNumber, String firstName,
-                    String lastName, String relationship, String phone, String email,
-                    String address, String occupation) {
-        this.id = id;
-        this.documentType = documentType;
-        this.documentNumber = documentNumber;
-        this.firstName = firstName;
-        this.lastName = lastName;
-        this.relationship = relationship;
-        this.phone = phone;
-        this.email = email;
-        this.address = address;
-        this.occupation = occupation;
-    }
-
-    public String getFullName() {
-        return this.firstName + " " + this.lastName;
-    }
-
-    // Getters and Setters
     public int getId() {
         return this.id;
     }
@@ -70,12 +54,45 @@ public class Guardian {
         this.firstName = firstName;
     }
 
+    public String getMiddleName() {
+        return this.middleName;
+    }
+
+    public void setMiddleName(String middleName) {
+        this.middleName = middleName;
+    }
+
     public String getLastName() {
         return this.lastName;
     }
 
     public void setLastName(String lastName) {
         this.lastName = lastName;
+    }
+
+    public String getSecondLastName() {
+        return this.secondLastName;
+    }
+
+    public void setSecondLastName(String secondLastName) {
+        this.secondLastName = secondLastName;
+    }
+
+    public String getFullName() {
+        StringBuilder sb = new StringBuilder();
+        if (this.firstName != null && !this.firstName.isEmpty()) {
+            sb.append(this.firstName);
+        }
+        if (this.middleName != null && !this.middleName.isEmpty()) {
+            sb.append(" ").append(this.middleName);
+        }
+        if (this.lastName != null && !this.lastName.isEmpty()) {
+            sb.append(" ").append(this.lastName);
+        }
+        if (this.secondLastName != null && !this.secondLastName.isEmpty()) {
+            sb.append(" ").append(this.secondLastName);
+        }
+        return sb.toString().trim();
     }
 
     public String getRelationship() {
@@ -86,12 +103,20 @@ public class Guardian {
         this.relationship = relationship;
     }
 
-    public String getPhone() {
-        return this.phone;
+    public String getPrimaryPhone() {
+        return this.primaryPhone;
     }
 
-    public void setPhone(String phone) {
-        this.phone = phone;
+    public void setPrimaryPhone(String primaryPhone) {
+        this.primaryPhone = primaryPhone;
+    }
+
+    public String getSecondaryPhone() {
+        return this.secondaryPhone;
+    }
+
+    public void setSecondaryPhone(String secondaryPhone) {
+        this.secondaryPhone = secondaryPhone;
     }
 
     public String getEmail() {
@@ -118,13 +143,20 @@ public class Guardian {
         this.occupation = occupation;
     }
 
+    public boolean isFinancialResponsible() {
+        return this.financialResponsible;
+    }
+
+    public void setFinancialResponsible(boolean financialResponsible) {
+        this.financialResponsible = financialResponsible;
+    }
+
     @Override
     public String toString() {
-        String doc = (this.documentType != null) ? this.documentType.getDbValue() : "";
-        return "ID: " + this.id
-                + " | Doc: " + doc + " " + this.documentNumber
-                + " | Acudiente: " + this.firstName + " " + this.lastName
-                + " | Parentesco: " + this.relationship
-                + " | Tel: " + this.phone;
+        String dt = (this.documentType != null) ? this.documentType.getDbValue() : "";
+        return String.format("ID: %d | %s %s | %s | Parentesco: %s | Tel: %s | Email: %s | Resp. Financiero: %s",
+                this.id, dt, this.documentNumber, this.getFullName(), this.relationship,
+                this.primaryPhone, this.email != null ? this.email : "-",
+                this.financialResponsible ? "Si" : "No");
     }
 }

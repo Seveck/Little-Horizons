@@ -31,8 +31,8 @@ public class StudentController {
     }
 
     // Register student and link guardian in one transaction
-    public int registerStudentWithGuardian(Student student, int guardianId, boolean isPrimary, String relationship) {
-        return this.studentDao.registerStudentWithGuardian(student, guardianId, isPrimary, relationship);
+    public int registerStudentWithGuardian(Student student, int guardianId, boolean isPrimary, boolean isEmergencyContact) {
+        return this.studentDao.registerStudentWithGuardian(student, guardianId, isPrimary, isEmergencyContact);
     }
 
     // List all students
@@ -58,9 +58,19 @@ public class StudentController {
         return this.studentDao.findByDocument(documentNumber);
     }
 
+    // Update student contact and medical info
+    public boolean updateStudent(Student student) {
+        return this.studentDao.update(student);
+    }
+
     // Change student status
     public boolean updateStudentStatus(int studentId, StudentStatus status) {
         return this.studentDao.updateStatus(studentId, status);
+    }
+
+    // List enrollments of a student
+    public List<Enrollment> getStudentEnrollments(int studentId) {
+        return this.enrollmentDao.findByStudentId(studentId);
     }
 
     // Register a new guardian
@@ -84,8 +94,8 @@ public class StudentController {
     }
 
     // Link an existing guardian to a student (supports siblings)
-    public boolean linkGuardianToStudent(int studentId, int guardianId, boolean isPrimary, String relationship) {
-        return this.studentDao.linkGuardian(studentId, guardianId, isPrimary, relationship);
+    public boolean linkGuardianToStudent(int studentId, int guardianId, boolean isPrimary, boolean isEmergencyContact) {
+        return this.studentDao.linkGuardian(studentId, guardianId, isPrimary, isEmergencyContact);
     }
 
     // Get guardians of a student

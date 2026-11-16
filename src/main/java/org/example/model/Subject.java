@@ -6,24 +6,16 @@ public class Subject {
     private String code;
     private String name;
     private String description;
+    private int gradeId;
     private int weeklyHours;
-    private String area;
+    private boolean active;
+    private String gradeName;
 
-    // Empty constructor
     public Subject() {
+        this.weeklyHours = 2;
+        this.active = true;
     }
 
-    // Constructor with fields
-    public Subject(int id, String code, String name, String description, int weeklyHours, String area) {
-        this.id = id;
-        this.code = code;
-        this.name = name;
-        this.description = description;
-        this.weeklyHours = weeklyHours;
-        this.area = area;
-    }
-
-    // Getters and Setters
     public int getId() {
         return this.id;
     }
@@ -56,6 +48,14 @@ public class Subject {
         this.description = description;
     }
 
+    public int getGradeId() {
+        return this.gradeId;
+    }
+
+    public void setGradeId(int gradeId) {
+        this.gradeId = gradeId;
+    }
+
     public int getWeeklyHours() {
         return this.weeklyHours;
     }
@@ -64,20 +64,27 @@ public class Subject {
         this.weeklyHours = weeklyHours;
     }
 
-    public String getArea() {
-        return this.area;
+    public boolean isActive() {
+        return this.active;
     }
 
-    public void setArea(String area) {
-        this.area = area;
+    public void setActive(boolean active) {
+        this.active = active;
+    }
+
+    public String getGradeName() {
+        return this.gradeName;
+    }
+
+    public void setGradeName(String gradeName) {
+        this.gradeName = gradeName;
     }
 
     @Override
     public String toString() {
-        return "ID: " + this.id
-                + " | Codigo: " + this.code
-                + " | Materia: " + this.name
-                + " | Area: " + this.area
-                + " | Horas/Sem: " + this.weeklyHours;
+        return String.format("ID: %d | [%s] %s | Grado: %s | Horas/sem: %d | Activa: %s",
+                this.id, this.code, this.name,
+                this.gradeName != null ? this.gradeName : String.valueOf(this.gradeId),
+                this.weeklyHours, this.active ? "Si" : "No");
     }
 }

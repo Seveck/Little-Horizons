@@ -5,30 +5,19 @@ import java.time.LocalDate;
 public class Resource {
 
     private int id;
-    private String uniqueCode;
+    private String code;
     private String name;
     private int categoryId;
-    private String physicalLocation;
-    private ResourceStatus status = ResourceStatus.AVAILABLE;
+    private String description;
     private LocalDate acquisitionDate;
+    private String physicalLocation;
+    private ResourceStatus status;
+    private String categoryName;
 
-    // Empty constructor
     public Resource() {
+        this.status = ResourceStatus.AVAILABLE;
     }
 
-    // Constructor with fields
-    public Resource(int id, String uniqueCode, String name, int categoryId,
-                    String physicalLocation, ResourceStatus status, LocalDate acquisitionDate) {
-        this.id = id;
-        this.uniqueCode = uniqueCode;
-        this.name = name;
-        this.categoryId = categoryId;
-        this.physicalLocation = physicalLocation;
-        this.status = status;
-        this.acquisitionDate = acquisitionDate;
-    }
-
-    // Getters and Setters
     public int getId() {
         return this.id;
     }
@@ -37,12 +26,12 @@ public class Resource {
         this.id = id;
     }
 
-    public String getUniqueCode() {
-        return this.uniqueCode;
+    public String getCode() {
+        return this.code;
     }
 
-    public void setUniqueCode(String uniqueCode) {
-        this.uniqueCode = uniqueCode;
+    public void setCode(String code) {
+        this.code = code;
     }
 
     public String getName() {
@@ -61,6 +50,22 @@ public class Resource {
         this.categoryId = categoryId;
     }
 
+    public String getDescription() {
+        return this.description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public LocalDate getAcquisitionDate() {
+        return this.acquisitionDate;
+    }
+
+    public void setAcquisitionDate(LocalDate acquisitionDate) {
+        this.acquisitionDate = acquisitionDate;
+    }
+
     public String getPhysicalLocation() {
         return this.physicalLocation;
     }
@@ -77,21 +82,20 @@ public class Resource {
         this.status = status;
     }
 
-    public LocalDate getAcquisitionDate() {
-        return this.acquisitionDate;
+    public String getCategoryName() {
+        return this.categoryName;
     }
 
-    public void setAcquisitionDate(LocalDate acquisitionDate) {
-        this.acquisitionDate = acquisitionDate;
+    public void setCategoryName(String categoryName) {
+        this.categoryName = categoryName;
     }
 
     @Override
     public String toString() {
-        String st = (this.status != null) ? this.status.getDbValue() : "";
-        return "ID: " + this.id
-                + " | Codigo: " + this.uniqueCode
-                + " | Recurso: " + this.name
-                + " | Ubicacion: " + this.physicalLocation
-                + " | Estado: " + st;
+        String st = (this.status != null) ? this.status.getDbValue() : "N/A";
+        return String.format("ID: %d | [%s] %s | Cat: %s | Ubicacion: %s | Estado: %s",
+                this.id, this.code, this.name,
+                this.categoryName != null ? this.categoryName : String.valueOf(this.categoryId),
+                this.physicalLocation != null ? this.physicalLocation : "-", st);
     }
 }
