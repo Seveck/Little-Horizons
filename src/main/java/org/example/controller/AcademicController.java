@@ -8,6 +8,7 @@ import org.example.model.AcademicPeriod;
 import org.example.model.AcademicRecord;
 import org.example.model.Attendance;
 import org.example.model.AttendanceStatus;
+import org.example.model.SubjectPerformance;
 
 import java.time.temporal.WeekFields;
 import java.util.ArrayList;
@@ -141,5 +142,63 @@ public class AcademicController {
                         + " -> " + entry.getValue() + " ausencias registradas en la semana."));
 
         return alerts;
+    }
+
+    // Load all academic records and calculate subject performance ranking (descending)
+    public List<SubjectPerformance> getSubjectPerformanceRanking() {
+        List<AcademicRecord> records = this.academicRecordDao.findAllWithSubject();
+        return this.calculateSubjectPerformanceRanking(records);
+    }
+
+    // Calculate arithmetic average per subject (rounded to 1 decimal) and sort highest to lowest using Stream API
+    public List<SubjectPerformance> calculateSubjectPerformanceRanking(List<AcademicRecord> records) {
+        if (records == null || records.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        Map<Integer, List<AcademicRecord>> groupedBySubject = records.stream()
+                .collect(Collectors.groupingBy(r -> r.getSubjectId()));
+
+        return groupedBySubject.entrySet().stream()
+                .map(entry -> {
+                    List<AcademicRecord> subjectRecords = entry.getValue();
+                    AcademicRecord first = subjectRecords.get(0);
+                    double rawAverage = subjectRecords.stream()
+                            .mapToDouble(r -> r.getGradeValue())
+                            .average()
+                            .orElse(0.0);
+                    double roundedAverage = Math.round(rawAverage * 10.0) / 10.0;
+                    return new SubjectPerformance(
+                            first.getSubjectId(),
+                            first.getSubjectCode(),
+                            first.getSubjectName(),
+                            roundedAverage,
+                            subjectRecords.size()
+                    );
+                })
+                .sorted((a, b) -> {
+                    int compareAvg = Double.compare(b.getAverageGrade(), a.getAverageGrade());
+                    if (compareAvg != 0) {
+                        return compareAvg;
+                    }
+                    return a.getSubjectName().compareToIgnoreCase(b.getSubjectName());
+                })
+                .collect(Collectors.toList());
+    }
+
+    // Identify the subject(s) with the highest average (supports ties) using Stream API
+    public List<SubjectPerformance> findTopPerformingSubjects(List<SubjectPerformance> ranking) {
+        if (ranking == null || ranking.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        double maxAverage = ranking.stream()
+                .mapToDouble(p -> p.getAverageGrade())
+                .max()
+                .orElse(0.0);
+
+        return ranking.stream()
+                .filter(p -> p.getAverageGrade() == maxAverage)
+                .collect(Collectors.toList());
     }
 }

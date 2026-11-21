@@ -84,6 +84,34 @@ public class AcademicRecordDao {
         }
     }
 
+    // Find all academic records joined with subject info for performance analysis
+    public List<AcademicRecord> findAllWithSubject() {
+        List<AcademicRecord> list = new ArrayList<>();
+        String sql = "SELECT ra.id_registro, ra.valor_nota, ra.periodo_academico, ra.año_academico, "
+                + "m.id_materia, m.codigo_materia, m.nombre_materia "
+                + "FROM registros_academicos ra "
+                + "INNER JOIN materias m ON ra.id_materia = m.id_materia "
+                + "ORDER BY m.nombre_materia, ra.id_registro";
+        try (Connection conn = DatabaseConnection.getInstance().getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                AcademicRecord record = new AcademicRecord();
+                record.setId(rs.getInt("id_registro"));
+                record.setGradeValue(rs.getDouble("valor_nota"));
+                record.setPeriod(AcademicPeriod.fromDbValue(rs.getString("periodo_academico")));
+                record.setAcademicYear(rs.getInt("año_academico"));
+                record.setSubjectId(rs.getInt("id_materia"));
+                record.setSubjectCode(rs.getString("codigo_materia"));
+                record.setSubjectName(rs.getString("nombre_materia"));
+                list.add(record);
+            }
+        } catch (SQLException e) {
+            ErrorLogger.log(AcademicRecordDao.class, "findAllWithSubject", e);
+        }
+        return list;
+    }
+
     // Find all grade records for an academic year
     public List<GradeDetail> findGradeDetailsByYear(int academicYear) {
         List<GradeDetail> list = new ArrayList<>();
