@@ -4,6 +4,7 @@ import org.example.controller.ReportController;
 import org.example.dao.LoanDao.LoanDetail;
 import org.example.dao.PaymentDao.PaymentDetail;
 import org.example.model.Club;
+import org.example.model.SubjectPerformance;
 import org.example.util.InputValidator;
 
 import java.util.InputMismatchException;
@@ -33,6 +34,7 @@ public class ReportView {
             System.out.println("3. Reporte financiero (recaudo anual y morosos)");
             System.out.println("4. Reporte de recursos e inventario vencido");
             System.out.println("5. Reporte extracurricular (clubes y eventos)");
+            System.out.println("6. Generar Reporte de Rendimiento Academico por Materia (.txt)");
             System.out.println("0. Volver al menu principal");
             System.out.println("Digite su opcion:");
 
@@ -55,6 +57,9 @@ public class ReportView {
                         break;
                     case 5:
                         this.showExtracurricularReportMenu();
+                        break;
+                    case 6:
+                        this.showSubjectPerformanceReportMenu();
                         break;
                     case 0:
                         return;
@@ -169,5 +174,36 @@ public class ReportView {
         Map<String, Long> byType = this.controller.getEventsSummaryByType();
         byType.forEach((type, count) ->
                 System.out.println("  - " + type + ": " + count + " evento(s)"));
+    }
+
+    // 6. Academic performance report by subject (console + .txt)
+    private void showSubjectPerformanceReportMenu() {
+        List<SubjectPerformance> ranking = this.controller.getSubjectPerformanceRanking();
+
+        if (ranking.isEmpty()) {
+            System.out.println("\n================================================================");
+            System.out.println("No hay registros academicos suficientes para generar estadisticas.");
+            System.out.println("Por favor, asegurese de que existan notas registradas en el sistema.");
+            System.out.println("================================================================");
+            System.out.println("Presione Enter para volver al menu...");
+            this.scanner.nextLine();
+            return;
+        }
+
+        List<SubjectPerformance> topSubjects = this.controller.findTopPerformingSubjects(ranking);
+        String reportContent = this.controller.buildSubjectPerformanceReport(ranking, topSubjects);
+        String savedFilePath = this.controller.saveSubjectPerformanceReportTxt(reportContent);
+
+        System.out.println();
+        System.out.print(reportContent);
+        if (savedFilePath != null) {
+            System.out.println("Reporte generado exitosamente.");
+            System.out.println("Archivo .txt guardado en: " + savedFilePath);
+        } else {
+            System.out.println("Reporte mostrado en consola, pero ocurrio un error al guardar el archivo .txt (revise error_log.txt).");
+        }
+        System.out.println("Presione Enter para volver al menu...");
+        System.out.println("================================================================");
+        this.scanner.nextLine();
     }
 }

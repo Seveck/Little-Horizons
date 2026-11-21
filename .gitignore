@@ -40,5 +40,6 @@ build/
 out/
 error_log.txt
 invoices/
+reports/
 config.txt
 

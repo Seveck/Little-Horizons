@@ -14,6 +14,7 @@ public class AcademicRecord {
     private String observations;
     private LocalDate recordDate;
     private String studentName;
+    private String subjectCode;
     private String subjectName;
     private String teacherName;
 
@@ -99,6 +100,14 @@ public class AcademicRecord {
 
     public void setStudentName(String studentName) {
         this.studentName = studentName;
+    }
+
+    public String getSubjectCode() {
+        return this.subjectCode;
+    }
+
+    public void setSubjectCode(String subjectCode) {
+        this.subjectCode = subjectCode;
     }
 
     public String getSubjectName() {
