@@ -122,6 +122,7 @@ Little-Horizons/
 ├── docs/
 │   └── database.sql                # Script DDL (22 tablas) + DML (>=30 filas por tabla principal)
 ├── invoices/                       # Carpeta de salida para facturas electrónicas .txt
+├── reports/                        # Carpeta de salida para reportes de rendimiento académico .txt
 ├── pom.xml                         # Configuración Maven (Java 27 + mysql-connector-j)
 └── src/main/java/org/example/
     ├── Main.java                   # Menú principal interactivo
@@ -129,7 +130,7 @@ Little-Horizons/
     ├── dao/                        # Acceso JDBC con PreparedStatement, try-with-resources y transacciones
     ├── controller/                 # Reglas de negocio, cálculos con Streams y coordinación
     ├── view/                       # Vistas de consola por módulo y validación de entradas
-    └── util/                       # DatabaseConnection, ErrorLogger, InputValidator, TxtInvoiceGenerator
+    └── util/                       # DatabaseConnection, ErrorLogger, InputValidator, TxtInvoiceGenerator, TxtAcademicReportGenerator
 ```
 
 ---
@@ -152,7 +153,7 @@ Little-Horizons/
 
 1. **Módulo de Estudiantes y Matrícula (`StudentView` / `StudentController`):** Registro transaccional estudiante-acudiente, soporte para hermanos bajo un mismo acudiente, búsqueda por nombre o documento, cambio de estado y matrícula por grado/año.
 2. **Módulo de Profesores y Materias (`TeacherView` / `TeacherController`):** Directorio docente, catálogo de materias por grado, asignación académica con detección de conflictos de horario e inscripción de estudiantes por período.
-3. **Módulo Académico y Asistencias (`AcademicView` / `AcademicController`):** Registro de notas (`0.0`–`5.0`), historial completo multi-año, cálculo automático con Streams de promedios por materia/período/curso, control diario de asistencia y alertas por `> 3` ausencias semanales.
+3. **Módulo Académico y Asistencias (`AcademicView` / `AcademicController`):** Registro de notas (`0.0`–`5.0`), historial completo multi-año, cálculo automático con Streams de promedios por materia/período/curso, reporte de rendimiento académico por materia con detección de materia(s) destacada(s) y exportación automática a `.txt` (`reports/`), control diario de asistencia y alertas por `> 3` ausencias semanales.
 4. **Módulo Extracurricular (`ExtracurricularView` / `ExtracurricularController`):** Gestión de clubes con validación transaccional de cupo máximo, calendario de eventos por tipo y registro de posiciones competitivas.
 5. **Módulo Financiero y Facturación DIAN en TXT (`FinancialView` / `FinancialController`):** Catálogo de conceptos de pago, descuentos por becas/hermanos, pagos transaccionales con emisión automática de factura `.txt` DIAN (`invoices/factura_XXXXXX.txt`, guardada en la columna `nombre_archivo_pdf` de `facturas`), historial consolidado por acudiente y reporte de morosos (`> 30` días).
 6. **Módulo de Recursos (`ResourceView` / `ResourceController`):** Inventario por categoría/ubicación/estado, préstamos y devoluciones transaccionales a estudiantes y profesores, actualización automática de estado (`Disponible`/`Prestado`) y alertas de vencidos.

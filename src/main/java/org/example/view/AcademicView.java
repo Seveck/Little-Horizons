@@ -11,6 +11,7 @@ import org.example.model.Attendance;
 import org.example.model.AttendanceStatus;
 import org.example.model.Student;
 import org.example.model.Subject;
+import org.example.model.SubjectPerformance;
 import org.example.model.Teacher;
 import org.example.util.InputValidator;
 
@@ -50,6 +51,7 @@ public class AcademicView {
             System.out.println("7. Reporte de patrones de inasistencia (>3 ausencias en 1 semana)");
             System.out.println("8. Corregir calificacion registrada");
             System.out.println("9. Actualizar estado de asistencia");
+            System.out.println("10. Generar Reporte de Rendimiento Academico por Materia (.txt)");
             System.out.println("0. Volver al menu principal");
             System.out.println("Digite su opcion:");
 
@@ -84,6 +86,9 @@ public class AcademicView {
                         break;
                     case 9:
                         this.updateAttendanceMenu();
+                        break;
+                    case 10:
+                        this.subjectPerformanceReportMenu();
                         break;
                     case 0:
                         return;
@@ -348,6 +353,37 @@ public class AcademicView {
         } else {
             System.out.println("No se encontro una asistencia con ese ID.");
         }
+    }
+
+    // 10. Generate Academic Performance Report by Subject (console + .txt file)
+    public void subjectPerformanceReportMenu() {
+        List<SubjectPerformance> ranking = this.academicController.getSubjectPerformanceRanking();
+
+        if (ranking.isEmpty()) {
+            System.out.println("\n================================================================");
+            System.out.println("No hay registros academicos suficientes para generar estadisticas.");
+            System.out.println("Por favor, asegurese de que existan notas registradas en el sistema.");
+            System.out.println("================================================================");
+            System.out.println("Presione Enter para volver al menu...");
+            this.scanner.nextLine();
+            return;
+        }
+
+        List<SubjectPerformance> topSubjects = this.academicController.findTopPerformingSubjects(ranking);
+        String reportContent = this.academicController.buildSubjectPerformanceReport(ranking, topSubjects);
+        String savedFilePath = this.academicController.saveSubjectPerformanceReportTxt(reportContent);
+
+        System.out.println();
+        System.out.print(reportContent);
+        if (savedFilePath != null) {
+            System.out.println("Reporte generado exitosamente.");
+            System.out.println("Archivo .txt guardado en: " + savedFilePath);
+        } else {
+            System.out.println("Reporte mostrado en consola, pero ocurrio un error al guardar el archivo .txt (revise error_log.txt).");
+        }
+        System.out.println("Presione Enter para volver al menu...");
+        System.out.println("================================================================");
+        this.scanner.nextLine();
     }
 
     private AcademicPeriod askPeriod() {

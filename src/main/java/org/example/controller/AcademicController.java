@@ -9,7 +9,10 @@ import org.example.model.AcademicRecord;
 import org.example.model.Attendance;
 import org.example.model.AttendanceStatus;
 import org.example.model.SubjectPerformance;
+import org.example.util.ErrorLogger;
+import org.example.util.TxtAcademicReportGenerator;
 
+import java.io.IOException;
 import java.time.temporal.WeekFields;
 import java.util.ArrayList;
 import java.util.List;
@@ -200,5 +203,20 @@ public class AcademicController {
         return ranking.stream()
                 .filter(p -> p.getAverageGrade() == maxAverage)
                 .collect(Collectors.toList());
+    }
+
+    // Build formatted report text for console and .txt output
+    public String buildSubjectPerformanceReport(List<SubjectPerformance> ranking, List<SubjectPerformance> topSubjects) {
+        return TxtAcademicReportGenerator.buildReportContent(ranking, topSubjects);
+    }
+
+    // Save the formatted subject performance report to a .txt file
+    public String saveSubjectPerformanceReportTxt(String reportContent) {
+        try {
+            return TxtAcademicReportGenerator.saveReportFile(reportContent);
+        } catch (IOException e) {
+            ErrorLogger.log(AcademicController.class, "saveSubjectPerformanceReportTxt", e);
+            return null;
+        }
     }
 }
